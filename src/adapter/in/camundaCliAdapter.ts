@@ -1,4 +1,5 @@
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
+import { DownloadFilesInPort } from '../../application/ports/in/downloadFilesInPort';
 import { SayHelloWorldInPort } from '../../application/ports/in/helloWorldInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
@@ -8,6 +9,7 @@ const cliVersion = typeof CAMUNDA_CLI_VERSION === 'string'
     : process.env.npm_package_version ?? '0.1.0';
 
 export interface CamundaCliDependencies {
+    downloadFilesInPort: DownloadFilesInPort;
     sayHelloWorldInPort: SayHelloWorldInPort;
     version?: string;
 }
@@ -17,8 +19,46 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
 
     program
         .name('camunda-cli')
-        .description('CLI for interacting with the Camunda 7 REST API')
+        .description('CLI for interacting with Camunda 8')
         .version(dependencies.version ?? cliVersion);
+
+    const downloadCommand = program
+        .command('download')
+        .description('Download files from Camunda 8 Web Modeler');
+
+    downloadCommand
+        .command('files')
+        .description('Download the latest content of every Modeler file')
+        .addOption(createBearerTokenOption())
+        .addOption(createModelerApiUrlOption())
+        .action(async (options: { bearerToken: string; modelerApiUrl?: string }) => {
+            await dependencies.downloadFilesInPort.downloadFiles({
+                bearerToken: options.bearerToken,
+                destinationDirectory: process.cwd(),
+                modelerApiUrl: options.modelerApiUrl,
+            });
+        });
+
+    downloadCommand
+        .command('file')
+        .description('Download a single Modeler file')
+        .argument('<file-id>', 'Modeler file ID')
+        .addOption(createBearerTokenOption())
+        .addOption(createModelerApiUrlOption())
+        .option('--version-id <version-id>', 'specific Modeler file version ID')
+        .action(async (fileId: string, options: {
+            bearerToken: string;
+            modelerApiUrl?: string;
+            versionId?: string;
+        }) => {
+            await dependencies.downloadFilesInPort.downloadFile({
+                bearerToken: options.bearerToken,
+                destinationDirectory: process.cwd(),
+                fileId,
+                modelerApiUrl: options.modelerApiUrl,
+                versionId: options.versionId,
+            });
+        });
 
     program
         .command('hello-world')
@@ -29,6 +69,16 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         });
 
     return program;
+}
+
+function createBearerTokenOption(): Option {
+    return new Option('--bearer-token <token>', 'Camunda 8 Web Modeler JWT access token')
+        .env('CAMUNDA_MODELER_BEARER_TOKEN')
+        .makeOptionMandatory();
+}
+
+function createModelerApiUrlOption(): Option {
+    return new Option('--modeler-api-url <url>', 'custom Web Modeler API base URL for self-hosted Camunda 8');
 }
 
 export async function runCamundaCli(dependencies: CamundaCliDependencies, argv: string[] = process.argv): Promise<void> {
