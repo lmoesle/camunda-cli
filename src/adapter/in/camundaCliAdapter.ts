@@ -30,11 +30,16 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .command('files')
         .description('Download the latest content of every Modeler file')
         .addOption(createBearerTokenOption())
+        .addOption(createDestinationDirectoryOption())
         .addOption(createModelerApiUrlOption())
-        .action(async (options: { bearerToken: string; modelerApiUrl?: string }) => {
+        .action(async (options: {
+            bearerToken: string;
+            destinationDirectory: string;
+            modelerApiUrl?: string;
+        }) => {
             await dependencies.downloadFilesInPort.downloadFiles({
                 bearerToken: options.bearerToken,
-                destinationDirectory: process.cwd(),
+                destinationDirectory: options.destinationDirectory,
                 modelerApiUrl: options.modelerApiUrl,
             });
         });
@@ -44,16 +49,18 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .description('Download a single Modeler file')
         .argument('<file-id>', 'Modeler file ID')
         .addOption(createBearerTokenOption())
+        .addOption(createDestinationDirectoryOption())
         .addOption(createModelerApiUrlOption())
         .option('--version-id <version-id>', 'specific Modeler file version ID')
         .action(async (fileId: string, options: {
             bearerToken: string;
+            destinationDirectory: string;
             modelerApiUrl?: string;
             versionId?: string;
         }) => {
             await dependencies.downloadFilesInPort.downloadFile({
                 bearerToken: options.bearerToken,
-                destinationDirectory: process.cwd(),
+                destinationDirectory: options.destinationDirectory,
                 fileId,
                 modelerApiUrl: options.modelerApiUrl,
                 versionId: options.versionId,
@@ -75,6 +82,11 @@ function createBearerTokenOption(): Option {
     return new Option('--bearer-token <token>', 'Camunda 8 Web Modeler JWT access token')
         .env('CAMUNDA_MODELER_BEARER_TOKEN')
         .makeOptionMandatory();
+}
+
+function createDestinationDirectoryOption(): Option {
+    return new Option('-d, --destination-directory <path>', 'directory for downloaded files')
+        .default(process.cwd());
 }
 
 function createModelerApiUrlOption(): Option {

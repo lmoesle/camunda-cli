@@ -330,13 +330,15 @@ describe('download CLI commands', () => {
             'files',
             '--bearer-token',
             'jwt',
+            '--destination-directory',
+            '/downloads',
             '--modeler-api-url',
             'http://localhost:8070/api/v1',
         ], { from: 'user' });
 
         expect(downloadFiles).toHaveBeenCalledWith({
             bearerToken: 'jwt',
-            destinationDirectory: process.cwd(),
+            destinationDirectory: '/downloads',
             modelerApiUrl: 'http://localhost:8070/api/v1',
         });
     });
@@ -357,16 +359,42 @@ describe('download CLI commands', () => {
             'version-1',
             '--bearer-token',
             'jwt',
+            '-d',
+            '/single-download',
             '--modeler-api-url',
             'http://localhost:8070/api/v1',
         ], { from: 'user' });
 
         expect(downloadFile).toHaveBeenCalledWith({
             bearerToken: 'jwt',
-            destinationDirectory: process.cwd(),
+            destinationDirectory: '/single-download',
             fileId: 'file-1',
             modelerApiUrl: 'http://localhost:8070/api/v1',
             versionId: 'version-1',
+        });
+    });
+
+    test('uses the current directory by default when downloading one file', async () => {
+        const downloadFile = jest.fn().mockResolvedValue({ fileId: 'file-1', path: '/work/Process.bpmn' });
+        const program = createCamundaCli({
+            downloadFilesInPort: { downloadFiles: jest.fn(), downloadFile },
+            sayHelloWorldInPort: { sayHelloWorld: jest.fn() },
+        });
+
+        await program.parseAsync([
+            'download',
+            'file',
+            'file-1',
+            '--bearer-token',
+            'jwt',
+        ], { from: 'user' });
+
+        expect(downloadFile).toHaveBeenCalledWith({
+            bearerToken: 'jwt',
+            destinationDirectory: process.cwd(),
+            fileId: 'file-1',
+            modelerApiUrl: undefined,
+            versionId: undefined,
         });
     });
 

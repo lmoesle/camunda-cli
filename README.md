@@ -52,6 +52,13 @@ Download a specific saved version of one file:
 camunda-cli download file <file-id> --version-id <version-id>
 ```
 
+Both commands download to the current directory by default. Use `--destination-directory <path>` or `-d <path>` to choose another directory:
+
+```bash
+camunda-cli download files --destination-directory ./downloads
+camunda-cli download file <file-id> -d ./downloads
+```
+
 Alternatively, pass the token directly to any download command with `--bearer-token <token>`.
 
 The CLI targets Web Modeler REST API v1 at `https://modeler.camunda.io/api/v1` by default. Use `--modeler-api-url` to target a self-hosted Camunda 8 instance:
