@@ -1,7 +1,11 @@
 {
   "name": "@lmoesle/camunda-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI for interacting with Camunda 8",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lmoesle/camunda-cli"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
