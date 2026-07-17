@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+# See https://docs.npmjs.com/trusted-publishers
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
+jobs:
+  release:
+    permissions:
+      id-token: write
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Set Release Version
+        run: |
+          echo "RELEASE_VERSION=$(grep -m1 version package.json | awk -F: '{ print $2 }' | sed 's/[", ]//g')" >> $GITHUB_ENV
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # prepare release
+      - name: Install dependencies
+        run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm run test
+      - name: Build
+        run: npm run build
+
+      # nodejs-release
+      - name: Publish
+        run: npm publish --access public
+
+      # github release
+      - name: Create tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${{ env.RELEASE_VERSION }}',
+              sha: context.sha
+            })
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
