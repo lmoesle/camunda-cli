@@ -1,9 +1,9 @@
-# camunda-cli
+# npx @lmoesle/camunda-cli
 
-camunda-cli is a TypeScript CLI for interacting with Camunda 8.
+npx @lmoesle/camunda-cli is a TypeScript CLI for interacting with Camunda 8.
 
 This initial setup provides:
-- A Commander-based CLI entrypoint (`camunda-cli`).
+- A Commander-based CLI entrypoint (`npx @lmoesle/camunda-cli`).
 - A hexagonal project structure with `adapter`, `application`, and `domain` layers.
 - Commands for downloading files from Camunda 8 Web Modeler.
 - TypeScript build with `webpack`.
@@ -23,7 +23,7 @@ npm install
 npm run build
 ```
 
-The bundled CLI is emitted to `dist/bin/camunda-cli.js`. The package library entrypoint is emitted to `dist/index.js`.
+The bundled CLI is emitted to `dist/bin/npx @lmoesle/camunda-cli.js`. The package library entrypoint is emitted to `dist/index.js`.
 
 ## Run
 
@@ -37,26 +37,26 @@ export CAMUNDA_MODELER_BEARER_TOKEN
 Download the latest content of every Web Modeler file to the current directory:
 
 ```bash
-camunda-cli download files
+npx @lmoesle/camunda-cli download files
 ```
 
 Download the latest content of one file to the current directory:
 
 ```bash
-camunda-cli download file <file-id>
+npx @lmoesle/camunda-cli download file <file-id>
 ```
 
 Download a specific saved version of one file:
 
 ```bash
-camunda-cli download file <file-id> --version-id <version-id>
+npx @lmoesle/camunda-cli download file <file-id> --version-id <version-id>
 ```
 
 Both commands download to the current directory by default. Use `--destination-directory <path>` or `-d <path>` to choose another directory:
 
 ```bash
-camunda-cli download files --destination-directory ./downloads
-camunda-cli download file <file-id> -d ./downloads
+npx @lmoesle/camunda-cli download files --destination-directory ./downloads
+npx @lmoesle/camunda-cli download file <file-id> -d ./downloads
 ```
 
 Alternatively, pass the token directly to any download command with `--bearer-token <token>`.
@@ -64,8 +64,8 @@ Alternatively, pass the token directly to any download command with `--bearer-to
 The CLI targets Web Modeler REST API v1 at `https://modeler.camunda.io/api/v1` by default. Use `--modeler-api-url` to target a self-hosted Camunda 8 instance:
 
 ```bash
-camunda-cli download files --modeler-api-url http://localhost:8070/api/v1
-camunda-cli download file <file-id> --modeler-api-url http://localhost:8070/api/v1
+npx @lmoesle/camunda-cli download files --modeler-api-url http://localhost:8070/api/v1
+npx @lmoesle/camunda-cli download file <file-id> --modeler-api-url http://localhost:8070/api/v1
 ```
 
 Library consumers can pass `modelerApiBaseUrl` to `createDefaultCamundaCli` to change the default URL. Web Modeler API v1 is deprecated; future releases will migrate to the Camunda Hub API v2.
@@ -80,10 +80,10 @@ npm start -- hello-world Camunda
 npm start -- download file <file-id> --bearer-token <token>
 ```
 
-After installing the package globally or using it through npm, the command name is `camunda-cli`:
+After installing the package globally or using it through npm, the command name is `npx @lmoesle/camunda-cli`:
 
 ```bash
-camunda-cli hello-world
+npx @lmoesle/camunda-cli hello-world
 ```
 
 ## Development
