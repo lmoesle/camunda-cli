@@ -23,7 +23,7 @@ npm install
 npm run build
 ```
 
-The bundled CLI is emitted to `dist/bin/npx @lmoesle/camunda-cli.js`. The package library entrypoint is emitted to `dist/index.js`.
+The bundled CLI is emitted to `dist/bin/camunda-cli.js`. The package library entrypoint is emitted to `dist/index.js`.
 
 ## Run
 
@@ -85,6 +85,48 @@ After installing the package globally or using it through npm, the command name 
 ```bash
 npx @lmoesle/camunda-cli hello-world
 ```
+
+## Stored profiles
+
+Store a named authentication configuration for future use:
+
+```bash
+npx @lmoesle/camunda-cli add profile --name local --base-url xxx
+```
+
+Only `--name` and `--base-url` are required. The CLI accepts non-whitespace strings without enforcing URL schemes or requiring a particular combination of authentication fields. It trims profile names and compares them case-sensitively. Adding an existing name fails without replacing the profile; `local` and `Local` are distinct names. It preserves other field values, including whitespace in secrets.
+
+Use optional fields to store a complete configuration (the values below are placeholders, not real credentials):
+
+```bash
+npx @lmoesle/camunda-cli add profile --name remote --base-url https://camunda.example \
+  --client-id example-client --client-secret dummy-secret --audience example-audience \
+  --oauth-url https://auth.example/token --operate-url https://operate.example \
+  --zeebe-url zeebe.example:26500
+```
+
+| CLI flag | JSON key |
+| --- | --- |
+| `--name` | `name` |
+| `--base-url` | `baseUrl` |
+| `--client-id` | `clientId` |
+| `--client-secret` | `clientSecret` |
+| `--audience` | `audience` |
+| `--oauth-url` | `oAuthUrl` |
+| `--operate-url` | `operateUrl` |
+| `--zeebe-url` | `zeebeUrl` |
+
+The CLI stores profiles in `~/.lmoesle-camunda-cli/profiles.json`, under your home directory, not the current directory. It omits unspecified optional fields and appends profiles in order:
+
+```json
+{"profiles":[{"name":"local","baseUrl":"xxx"}]}
+```
+
+**Security:** Secrets are unencrypted cleartext. On POSIX systems, the CLI restricts the managed directory to mode `0700` and newly written profile files to mode `0600`; it refuses symbolic-link configuration directories and files. These permissions are not encryption and do not protect against privileged users or exposed backups. Passing a secret as a CLI argument can expose it through shell history and process listings. Do not use real credentials in shared terminals or logs, and protect the stored file and its backups.
+
+Writes use a temporary file and atomic replacement. Invalid or unreadable existing storage fails without overwriting it. Concurrent additions use an exclusive `profiles.lock` file; retry if another addition holds the lock. If a process crashes and leaves a lock, remove it only after confirming no addition is running.
+
+Profile selection and OAuth authentication in other commands are future scope. Download commands still use their existing bearer-token configuration; stored profiles do not change download behavior. Library consumers can inject `homeDirectory` into `createDefaultCamundaCli` or `JsonProfileRepositoryAdapter` for isolated storage, and provide `addProfileInPort` to `createCamundaCli` to handle the new command.
 
 ## Development
 

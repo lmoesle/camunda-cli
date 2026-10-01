@@ -19,4 +19,10 @@ export type { ShowHelloWorldOutPort } from './application/ports/out/helloWorldOu
 export { createHelloWorldGreeting } from './domain/helloWorld';
 export type { HelloWorldGreeting } from './domain/helloWorld';
 export { createDownloadFileName } from './domain/modelerFile';
+export { AddProfileUseCase } from './application/usecases/addProfileUseCase';
+export type { AddProfileCommand, AddProfileInPort } from './application/ports/in/addProfileInPort';
+export type { ProfileRepositoryOutPort } from './application/ports/out/profileRepositoryOutPort';
+export { JsonProfileRepositoryAdapter } from './adapter/out/jsonProfileRepositoryAdapter';
+export { createProfile } from './domain/profile';
+export type { Profile } from './domain/profile';
 export type { ModelerFile, ModelerFileMetadata, ModelerVersion, ModelerVersionMetadata } from './domain/modelerFile';
