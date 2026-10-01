@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "webpack",
-    "lint": "eslint .",
+    "lint": "eslint . && fallow src",
     "prepack": "npm run build",
     "start": "npm run build && node dist/bin/camunda-cli.js",
     "test": "jest"
@@ -30,7 +30,8 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^1.18.1",
-    "commander": "^14.0.3"
+    "commander": "^14.0.3",
+    "fallow": "^3.31.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
