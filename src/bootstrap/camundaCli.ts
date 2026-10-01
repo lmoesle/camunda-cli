@@ -5,11 +5,14 @@ import { ConsoleHelloWorldPresenter } from '../adapter/out/consoleHelloWorldPres
 import { LocalFileAdapter } from '../adapter/out/localFileAdapter';
 import { DownloadFilesUseCase } from '../application/usecases/downloadFilesUseCase';
 import { HelloWorldUseCase } from '../application/usecases/helloWorldUseCase';
+import { AddProfileUseCase } from '../application/usecases/addProfileUseCase';
+import { JsonProfileRepositoryAdapter } from '../adapter/out/jsonProfileRepositoryAdapter';
 
 export interface CamundaCliBootstrapOptions {
     modelerApiBaseUrl?: string;
     writeLine?: (line: string) => void;
     version?: string;
+    homeDirectory?: string;
 }
 
 export function createDefaultCamundaCli(options: CamundaCliBootstrapOptions = {}): Command {
@@ -23,6 +26,7 @@ export function createDefaultCamundaCli(options: CamundaCliBootstrapOptions = {}
     return createCamundaCli({
         downloadFilesInPort,
         sayHelloWorldInPort,
+        addProfileInPort: new AddProfileUseCase(new JsonProfileRepositoryAdapter(options.homeDirectory)),
         version: options.version,
     });
 }

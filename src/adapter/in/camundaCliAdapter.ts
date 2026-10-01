@@ -1,6 +1,7 @@
 import { Command, Option } from 'commander';
 import { DownloadFilesInPort } from '../../application/ports/in/downloadFilesInPort';
 import { SayHelloWorldInPort } from '../../application/ports/in/helloWorldInPort';
+import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/addProfileInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -11,6 +12,7 @@ const cliVersion = typeof CAMUNDA_CLI_VERSION === 'string'
 export interface CamundaCliDependencies {
     downloadFilesInPort: DownloadFilesInPort;
     sayHelloWorldInPort: SayHelloWorldInPort;
+    addProfileInPort?: AddProfileInPort;
     version?: string;
 }
 
@@ -21,6 +23,26 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .name('camunda-cli')
         .description('CLI for interacting with Camunda 8')
         .version(dependencies.version ?? cliVersion);
+
+    program.command('add')
+        .description('Add stored configuration')
+        .command('profile')
+        .description('Store a named profile in ~/.lmoesle-camunda-cli/profiles.json (secrets are unencrypted)')
+        .requiredOption('--name <name>', 'unique, case-sensitive profile name')
+        .requiredOption('--base-url <url>', 'Camunda base URL')
+        .option('--client-id <id>', 'OAuth client ID')
+        .option('--client-secret <secret>', 'OAuth client secret (stored in cleartext)')
+        .option('--audience <audience>', 'OAuth audience')
+        .option('--oauth-url <url>', 'OAuth URL')
+        .option('--operate-url <url>', 'Operate URL')
+        .option('--zeebe-url <url>', 'Zeebe URL')
+        .action(async (options: Omit<AddProfileCommand, 'oAuthUrl'> & { oauthUrl?: string }) => {
+            if (!dependencies.addProfileInPort) {
+                throw new Error('The add profile command requires an AddProfileInPort dependency.');
+            }
+            const { oauthUrl, ...profile } = options;
+            await dependencies.addProfileInPort.addProfile({ ...profile, oAuthUrl: oauthUrl });
+        });
 
     const downloadCommand = program
         .command('download')
