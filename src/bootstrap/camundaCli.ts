@@ -7,6 +7,9 @@ import { DownloadFilesUseCase } from '../application/usecases/downloadFilesUseCa
 import { HelloWorldUseCase } from '../application/usecases/helloWorldUseCase';
 import { AddProfileUseCase } from '../application/usecases/addProfileUseCase';
 import { JsonProfileRepositoryAdapter } from '../adapter/out/jsonProfileRepositoryAdapter';
+import { ConsoleProfileNoticePresenter } from '../adapter/out/consoleProfileNoticePresenter';
+import { LoadProfilesUseCase } from '../application/usecases/loadProfilesUseCase';
+import { ProfileCache, ProfileReadApi } from '../shared/profileCache';
 
 export interface CamundaCliBootstrapOptions {
     modelerApiBaseUrl?: string;
@@ -15,7 +18,12 @@ export interface CamundaCliBootstrapOptions {
     homeDirectory?: string;
 }
 
-export function createDefaultCamundaCli(options: CamundaCliBootstrapOptions = {}): Command {
+export interface DefaultCamundaCli extends Command {
+    initialize(): Promise<void>;
+    readonly profiles: ProfileReadApi;
+}
+
+export function createDefaultCamundaCli(options: CamundaCliBootstrapOptions = {}): DefaultCamundaCli {
     const writeLine = options.writeLine ?? console.log;
     const showHelloWorldOutPort = new ConsoleHelloWorldPresenter(writeLine);
     const sayHelloWorldInPort = new HelloWorldUseCase(showHelloWorldOutPort);
@@ -23,14 +31,33 @@ export function createDefaultCamundaCli(options: CamundaCliBootstrapOptions = {}
     const writeFileOutPort = new LocalFileAdapter();
     const downloadFilesInPort = new DownloadFilesUseCase(modelerFileOutPort, writeFileOutPort);
 
-    return createCamundaCli({
+    const repository = new JsonProfileRepositoryAdapter(options.homeDirectory);
+    const cache = new ProfileCache();
+    const loadProfilesInPort = new LoadProfilesUseCase(repository, cache, new ConsoleProfileNoticePresenter(writeLine));
+    let initialization: Promise<void> | undefined;
+    const initialize = (): Promise<void> => initialization ??= loadProfilesInPort.loadProfiles();
+    const program = createCamundaCli({
         downloadFilesInPort,
         sayHelloWorldInPort,
-        addProfileInPort: new AddProfileUseCase(new JsonProfileRepositoryAdapter(options.homeDirectory)),
+        addProfileInPort: new AddProfileUseCase(repository),
         version: options.version,
+    });
+    program.hook('preAction', initialize);
+    // Expose only queries, not the cache's mutation methods, on the runtime.
+    return Object.assign(program, {
+        initialize,
+        profiles: {
+            getProfiles: () => cache.getProfiles(),
+            getProfile: (name: string) => cache.getProfile(name),
+        },
     });
 }
 
-export async function runDefaultCamundaCli(argv: string[] = process.argv): Promise<void> {
-    await createDefaultCamundaCli().parseAsync(argv);
+export async function runDefaultCamundaCli(
+    argv: string[] = process.argv,
+    options: CamundaCliBootstrapOptions = {},
+): Promise<void> {
+    const program = createDefaultCamundaCli(options);
+    await program.initialize();
+    await program.parseAsync(argv);
 }

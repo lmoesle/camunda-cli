@@ -78,7 +78,7 @@ describe('profile JSON storage and default CLI', () => {
             '--oauth-url', 'oauth', '--operate-url', 'operate', '--zeebe-url', 'zeebe',
         ], { from: 'user' });
         expect(await repository.listProfiles()).toEqual([fullProfile]);
-        expect(writeLine).not.toHaveBeenCalled();
+        expect(writeLine.mock.calls).toEqual([['Please add a profile with the add profile command.']]);
     });
 
     test.each([

@@ -1,7 +1,14 @@
 export { createCamundaCli, runCamundaCli } from './adapter/in/camundaCliAdapter';
 export type { CamundaCliDependencies } from './adapter/in/camundaCliAdapter';
 export { createDefaultCamundaCli, runDefaultCamundaCli } from './bootstrap/camundaCli';
-export type { CamundaCliBootstrapOptions } from './bootstrap/camundaCli';
+export type { CamundaCliBootstrapOptions, DefaultCamundaCli } from './bootstrap/camundaCli';
+export { ProfileCache } from './shared/profileCache';
+export type { ProfileReadApi } from './shared/profileCache';
+export { LoadProfilesUseCase } from './application/usecases/loadProfilesUseCase';
+export type { LoadProfilesInPort } from './application/ports/in/loadProfilesInPort';
+export type { LoadProfilesOutPort } from './application/ports/out/loadProfilesOutPort';
+export type { ProfileCacheOutPort } from './application/ports/out/profileCacheOutPort';
+export type { ProfileNoticeOutPort } from './application/ports/out/profileNoticeOutPort';
 export { HelloWorldUseCase } from './application/usecases/helloWorldUseCase';
 export { DownloadFilesUseCase } from './application/usecases/downloadFilesUseCase';
 export type {
