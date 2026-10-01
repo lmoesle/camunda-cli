@@ -126,6 +126,28 @@ The CLI stores profiles in `~/.lmoesle-camunda-cli/profiles.json`, under your ho
 
 Writes use a temporary file and atomic replacement. Invalid or unreadable existing storage fails without overwriting it. Concurrent additions use an exclusive `profiles.lock` file; retry if another addition holds the lock. If a process crashes and leaves a lock, remove it only after confirming no addition is running.
 
+At startup, the CLI validates and loads `~/.lmoesle-camunda-cli/profiles.json` before running commands, including help and version requests. If the directory or file does not exist, it continues with an empty cache and prints this notice once:
+
+```text
+Please add a profile with the add profile command.
+```
+
+Loading never creates storage. An existing configuration with an empty `profiles` array does not trigger the notice. Invalid, unreadable, or symbolic-link storage stops startup with a safe error without printing credentials.
+
+Each default CLI runtime owns a shared in-memory startup snapshot. Queries preserve profile order and values, return defensive copies, and match trimmed names case-sensitively without reading disk. The `add profile` command writes configuration only; the current runtime's cache stays unchanged. New profiles and external file edits become visible at the next CLI invocation or when a new runtime initializes, not through automatic reloads.
+
+`createDefaultCamundaCli` remains synchronous and returns a Commander-compatible runtime. Await its memoized `initialize()` before querying profiles; `parseAsync()` also initializes before command actions. Constructing the runtime or generating help with `helpInformation()` alone performs no I/O. `runDefaultCamundaCli` explicitly initializes before parsing, including help, version, and no-command invocations. The generic `createCamundaCli` dependency-injection factory does not initialize profile storage.
+
+```typescript
+import { createDefaultCamundaCli } from '@lmoesle/camunda-cli';
+
+const cli = createDefaultCamundaCli();
+await cli.initialize();
+const profiles = cli.profiles.getProfiles();
+const local = cli.profiles.getProfile('local');
+// Use profiles in your application; do not log stored credentials.
+```
+
 Profile selection and OAuth authentication in other commands are future scope. Download commands still use their existing bearer-token configuration; stored profiles do not change download behavior. Library consumers can inject `homeDirectory` into `createDefaultCamundaCli` or `JsonProfileRepositoryAdapter` for isolated storage, and provide `addProfileInPort` to `createCamundaCli` to handle the new command.
 
 ## Development
@@ -140,3 +162,4 @@ Profile selection and OAuth authentication in other commands are future scope. D
 - `src/application/ports` contains inbound and outbound application ports.
 - `src/application/usecases` contains application use cases.
 - `src/domain` contains domain behavior.
+- `src/shared` contains the per-runtime profile cache and its read API.

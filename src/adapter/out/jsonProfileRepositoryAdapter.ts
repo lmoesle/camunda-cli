@@ -4,6 +4,7 @@ import { chmod, lstat, mkdir, open, rename, unlink, writeFile } from 'node:fs/pr
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { ProfileRepositoryOutPort } from '../../application/ports/out/profileRepositoryOutPort';
+import { LoadProfilesOutPort } from '../../application/ports/out/loadProfilesOutPort';
 import { createProfile, optionalProfileFields, Profile } from '../../domain/profile';
 
 class ProfileStorageError extends Error {}
@@ -13,7 +14,7 @@ interface ProfileDocument {
     [key: string]: unknown;
 }
 
-export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort {
+export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, LoadProfilesOutPort {
     private directory: string;
     private filePath: string;
 
@@ -23,9 +24,13 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort {
     }
 
     async listProfiles(): Promise<Profile[]> {
+        return (await this.loadProfiles()) ?? [];
+    }
+
+    async loadProfiles(): Promise<Profile[] | undefined> {
         return this.withSafeErrors(async () => {
             await this.checkDirectory();
-            return (await this.readDocument()).profiles;
+            return (await this.readDocument())?.profiles;
         });
     }
 
@@ -48,7 +53,7 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort {
             });
             const temporaryPath = path.join(this.directory, `.profiles-${randomUUID()}.tmp`);
             try {
-                const document = await this.readDocument();
+                const document = (await this.readDocument()) ?? { profiles: [] };
                 if (document.profiles.some((existing) => existing.name.trim() === profile.name)) {
                     throw new ProfileStorageError('A profile with this name already exists.');
                 }
@@ -96,7 +101,7 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort {
         }
     }
 
-    private async readDocument(): Promise<ProfileDocument> {
+    private async readDocument(): Promise<ProfileDocument | undefined> {
         await this.checkFile();
         let content: string;
         try {
@@ -111,7 +116,7 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort {
             }
         } catch (error: unknown) {
             if (hasCode(error, 'ENOENT')) {
-                return { profiles: [] };
+                return undefined;
             }
             throw error;
         }

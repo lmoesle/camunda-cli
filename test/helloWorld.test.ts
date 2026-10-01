@@ -1,5 +1,8 @@
 import { createDefaultCamundaCli, createHelloWorldGreeting, HelloWorldGreeting, HelloWorldUseCase } from '../src/index';
 import { ShowHelloWorldOutPort } from '../src/application/ports/out/helloWorldOutPort';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 describe('hello world domain', () => {
     test('creates a default hello world greeting', () => {
@@ -23,9 +26,23 @@ describe('hello world use case', () => {
 });
 
 describe('camunda cli', () => {
+    let home: string;
+
+    beforeEach(async () => {
+        home = await mkdtemp(path.join(tmpdir(), 'camunda-hello-'));
+        const directory = path.join(home, '.lmoesle-camunda-cli');
+        await mkdir(directory);
+        await writeFile(path.join(directory, 'profiles.json'), '{"profiles":[]}');
+    });
+
+    afterEach(async () => {
+        await rm(home, { recursive: true, force: true });
+    });
+
     test('prints hello world from the CLI command', async () => {
         const output: string[] = [];
         const program = createDefaultCamundaCli({
+            homeDirectory: home,
             writeLine: (line) => output.push(line),
         });
 
@@ -37,6 +54,7 @@ describe('camunda cli', () => {
     test('prints a named greeting from the CLI command', async () => {
         const output: string[] = [];
         const program = createDefaultCamundaCli({
+            homeDirectory: home,
             writeLine: (line) => output.push(line),
         });
 
