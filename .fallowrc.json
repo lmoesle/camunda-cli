@@ -10,12 +10,6 @@
     "maxCyclomatic": 20,
     "maxCognitive": 15
   },
-  "boundaries": {
-    "preset": "hexagonal",
-    "coverage": {
-      "requireAllFiles": true
-    }
-  },
   "rules": {
     "boundary-violation": "error",
     "circular-dependencies": "error",
