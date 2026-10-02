@@ -92,18 +92,30 @@ function validateModelerApiUrl(modelerApiUrl: string | undefined): string | unde
     try {
         const url = new URL(value);
 
-        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-            throw new Error();
-        }
-
-        if (url.username || url.password || value.includes('?') || value.includes('#')) {
-            throw new Error();
-        }
-
+        requireModelerApiBaseUrl(url, value);
         return url.toString().replace(/\/$/, '');
     } catch {
         throw new Error(`Invalid Modeler API URL: ${modelerApiUrl}`);
     }
+}
+
+function requireModelerApiBaseUrl(url: URL, value: string): void {
+    if (!isHttpProtocol(url.protocol) || hasCredentials(url) || hasQueryOrFragment(value)) {
+        throw new Error();
+    }
+}
+
+function isHttpProtocol(protocol: string): boolean {
+    return protocol === 'http:' || protocol === 'https:';
+}
+
+function hasCredentials(url: URL): boolean {
+    return Boolean(url.username || url.password);
+}
+
+function hasQueryOrFragment(value: string): boolean {
+    // URL.search and URL.hash are empty for a bare '?' or '#'; reject those too.
+    return value.includes('?') || value.includes('#');
 }
 
 function countFileNames(fileNames: string[]): Map<string, number> {
