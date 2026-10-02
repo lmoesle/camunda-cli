@@ -34,27 +34,40 @@ const windowsReservedName = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 
 export function createDownloadFileName(metadata: ModelerFileMetadata, includeId = false): string {
     const extension = fileExtensions[metadata.type.toLowerCase()];
-    const fallbackName = metadata.id || 'modeler-file';
-    let name = sanitizeFileName(metadata.name) || sanitizeFileName(fallbackName) || 'modeler-file';
     const extensionSuffix = extension ? `.${extension}` : '';
-
-    if (extensionSuffix && name.toLowerCase().endsWith(extensionSuffix)) {
-        name = name.slice(0, -extensionSuffix.length);
-    }
-
+    const name = removeExtension(downloadBaseName(metadata), extensionSuffix);
     const idSuffix = includeId ? `-${sanitizeFileName(metadata.id)}` : '';
     const fixedSuffix = `${idSuffix}${extensionSuffix}`;
-    let maximumNameBytes = maxFileNameBytes - Buffer.byteLength(fixedSuffix);
+    const maximumNameBytes = availableNameBytes(metadata.id, fixedSuffix);
+    return assembleFileName(name, fixedSuffix, maximumNameBytes);
+}
+
+function downloadBaseName(metadata: ModelerFileMetadata): string {
+    const fallbackName = metadata.id || 'modeler-file';
+    return sanitizeFileName(metadata.name) || sanitizeFileName(fallbackName) || 'modeler-file';
+}
+
+function removeExtension(name: string, extensionSuffix: string): string {
+    if (extensionSuffix && name.toLowerCase().endsWith(extensionSuffix)) {
+        return name.slice(0, -extensionSuffix.length);
+    }
+    return name;
+}
+
+function availableNameBytes(id: string, fixedSuffix: string): number {
+    const maximumNameBytes = maxFileNameBytes - Buffer.byteLength(fixedSuffix);
 
     if (maximumNameBytes <= 0) {
-        throw new Error(`Modeler file ${metadata.id} has an identifier or extension that is too long.`);
+        throw new Error(`Modeler file ${id} has an identifier or extension that is too long.`);
     }
+    return maximumNameBytes;
+}
 
-    let fileName = `${truncateUtf8(name, maximumNameBytes)}${fixedSuffix}`;
+function assembleFileName(name: string, fixedSuffix: string, maximumNameBytes: number): string {
+    const fileName = `${truncateUtf8(name, maximumNameBytes)}${fixedSuffix}`;
 
     if (windowsReservedName.test(fileName)) {
-        maximumNameBytes -= 1;
-        fileName = `_${truncateUtf8(name, maximumNameBytes)}${fixedSuffix}`;
+        return `_${truncateUtf8(name, maximumNameBytes - 1)}${fixedSuffix}`;
     }
 
     return fileName;

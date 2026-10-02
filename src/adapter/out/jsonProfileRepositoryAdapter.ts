@@ -76,70 +76,43 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, L
     }
 
     private async checkDirectory(): Promise<void> {
-        try {
-            const stat = await lstat(this.directory);
-            if (!stat.isDirectory() || stat.isSymbolicLink()) {
-                throw new ProfileStorageError('Profile configuration directory must be a real directory, not a symbolic link.');
-            }
-        } catch (error: unknown) {
-            if (!hasCode(error, 'ENOENT')) {
-                throw error;
-            }
+        const stat = await readIfPresent(() => lstat(this.directory));
+        if (!stat) {
+            return;
+        }
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+            throw new ProfileStorageError('Profile configuration directory must be a real directory, not a symbolic link.');
         }
     }
 
     private async checkFile(): Promise<void> {
-        try {
-            const stat = await lstat(this.filePath);
-            if (!stat.isFile() || stat.isSymbolicLink()) {
-                throw new ProfileStorageError('Profile storage must be a regular file, not a symbolic link.');
-            }
-        } catch (error: unknown) {
-            if (!hasCode(error, 'ENOENT')) {
-                throw error;
-            }
+        const stat = await readIfPresent(() => lstat(this.filePath));
+        if (!stat) {
+            return;
+        }
+        if (!stat.isFile() || stat.isSymbolicLink()) {
+            throw new ProfileStorageError('Profile storage must be a regular file, not a symbolic link.');
         }
     }
 
     private async readDocument(): Promise<ProfileDocument | undefined> {
         await this.checkFile();
-        let content: string;
-        try {
-            const file = await open(this.filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
-            try {
-                if (!(await file.stat()).isFile()) {
-                    throw new ProfileStorageError('Profile storage must be a regular file.');
-                }
-                content = await file.readFile('utf8');
-            } finally {
-                await file.close();
-            }
-        } catch (error: unknown) {
-            if (hasCode(error, 'ENOENT')) {
-                return undefined;
-            }
-            throw error;
+        const content = await readIfPresent(() => this.readContent());
+        if (content === undefined) {
+            return undefined;
         }
+        return parseDocument(content);
+    }
 
+    private async readContent(): Promise<string> {
+        const file = await open(this.filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
         try {
-            const document: unknown = JSON.parse(content);
-            if (!isRecord(document) || !Array.isArray(document.profiles)) {
-                throw new Error();
+            if (!(await file.stat()).isFile()) {
+                throw new ProfileStorageError('Profile storage must be a regular file.');
             }
-            const names = new Set<string>();
-            for (const profile of document.profiles) {
-                if (!isRecord(profile) || typeof profile.name !== 'string' || !profile.name.trim()
-                    || typeof profile.baseUrl !== 'string' || !profile.baseUrl.trim()
-                    || optionalProfileFields.some((field) => field in profile && typeof profile[field] !== 'string')
-                    || names.has(profile.name.trim())) {
-                    throw new Error();
-                }
-                names.add(profile.name.trim());
-            }
-            // Keep unknown keys and existing values intact for forward compatibility.
-            return document as unknown as ProfileDocument;
-        } catch {
-            throw new ProfileStorageError('Profile storage contains invalid JSON or an invalid profile schema.');
+            return await file.readFile('utf8');
+        } finally {
+            await file.close();
         }
     }
 
@@ -152,6 +125,67 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, L
             }
             throw new Error('Unable to access profile storage. Check permissions and available disk space.');
         }
+    }
+}
+
+function parseDocument(content: string): ProfileDocument {
+    try {
+        const document: unknown = JSON.parse(content);
+        const profiles = documentProfiles(document);
+        validateStoredProfiles(profiles);
+        // Keep unknown keys and existing values intact for forward compatibility.
+        return document as ProfileDocument;
+    } catch {
+        throw new ProfileStorageError('Profile storage contains invalid JSON or an invalid profile schema.');
+    }
+}
+
+function documentProfiles(document: unknown): unknown[] {
+    if (!isRecord(document) || !Array.isArray(document.profiles)) {
+        throw new Error();
+    }
+    return document.profiles;
+}
+
+function validateStoredProfiles(profiles: unknown[]): void {
+    const names = new Set<string>();
+    for (const profile of profiles) {
+        const name = validateStoredProfile(profile);
+        if (names.has(name)) {
+            throw new Error();
+        }
+        names.add(name);
+    }
+}
+
+// Return the comparison name without normalizing any persisted values.
+function validateStoredProfile(profile: unknown): string {
+    if (!isRecord(profile)) {
+        throw new Error();
+    }
+    const name = storedRequiredString(profile.name);
+    storedRequiredString(profile.baseUrl);
+    if (optionalProfileFields.some((field) => field in profile && typeof profile[field] !== 'string')) {
+        throw new Error();
+    }
+    return name.trim();
+}
+
+function storedRequiredString(value: unknown): string {
+    if (typeof value !== 'string' || !value.trim()) {
+        throw new Error();
+    }
+    return value;
+}
+
+async function readIfPresent<T>(read: () => Promise<T>): Promise<T | undefined> {
+    try {
+        return await read();
+    } catch (error: unknown) {
+        if (hasCode(error, 'ENOENT')) {
+            return undefined;
+        }
+        throw error;
     }
 }
 

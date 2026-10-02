@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosRequestConfig, isAxiosError } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, isAxiosError } from 'axios';
 import { ModelerFileOutPort } from '../../application/ports/out/modelerFileOutPort';
 import { ModelerFile, ModelerFileMetadata, ModelerVersion } from '../../domain/modelerFile';
 
@@ -40,7 +40,7 @@ export class AxiosModelerFileAdapter implements ModelerFileOutPort {
 
             receivedFiles += result.items.length;
 
-            if (result.items.length === 0 || result.items.length < pageSize || receivedFiles >= result.total) {
+            if (isLastPage(result, receivedFiles)) {
                 break;
             }
 
@@ -78,19 +78,33 @@ export class AxiosModelerFileAdapter implements ModelerFileOutPort {
             return response.data;
         } catch (error: unknown) {
             if (isAxiosError(error)) {
-                if (error.response?.status === 401) {
-                    throw new Error('The bearer token is invalid or expired.');
-                }
-
-                const apiMessage = getApiErrorMessage(error.response?.data);
-                const reason = apiMessage ?? error.message;
-                const status = error.response?.status ? `HTTP ${error.response.status}: ` : '';
-                throw new Error(`Failed to ${operation}: ${status}${reason}`);
+                throw translateAxiosError(error, operation);
             }
 
             throw error;
         }
     }
+}
+
+function isLastPage(result: SearchResult<ModelerFileMetadata>, receivedFiles: number): boolean {
+    return result.items.length === 0 || result.items.length < pageSize || receivedFiles >= result.total;
+}
+
+function translateAxiosError(error: AxiosError, operation: string): Error {
+    const response = error.response;
+    if (!response) {
+        return requestFailure(operation, undefined, error.message);
+    }
+    if (response.status === 401) {
+        return new Error('The bearer token is invalid or expired.');
+    }
+    const reason = getApiErrorMessage(response.data) ?? error.message;
+    return requestFailure(operation, response.status, reason);
+}
+
+function requestFailure(operation: string, statusCode: number | undefined, reason: string): Error {
+    const status = statusCode ? `HTTP ${statusCode}: ` : '';
+    return new Error(`Failed to ${operation}: ${status}${reason}`);
 }
 
 function requestConfig(bearerToken: string, modelerApiUrl?: string): AxiosRequestConfig {
@@ -108,17 +122,24 @@ function getApiErrorMessage(responseData: unknown): string | undefined {
         return undefined;
     }
 
-    const problemDetails = responseData as Record<string, unknown>;
+    return firstProblemMessage(responseData as Record<string, unknown>);
+}
 
+function firstProblemMessage(problemDetails: Record<string, unknown>): string | undefined {
     for (const property of ['detail', 'message', 'title']) {
-        if (property in problemDetails) {
-            const value = problemDetails[property];
-
-            if (typeof value === 'string') {
-                return value;
-            }
+        const value = stringProperty(problemDetails, property);
+        if (value !== undefined) {
+            return value;
         }
     }
 
     return undefined;
+}
+
+function stringProperty(record: Record<string, unknown>, property: string): string | undefined {
+    if (!(property in record)) {
+        return undefined;
+    }
+    const value = record[property];
+    return typeof value === 'string' ? value : undefined;
 }
