@@ -88,7 +88,7 @@ npx @lmoesle/camunda-cli hello-world
 
 ## Stored profiles
 
-Store a named authentication configuration for future use:
+Store a named authentication configuration:
 
 ```bash
 npx @lmoesle/camunda-cli add profile --name local --base-url xxx
@@ -148,7 +148,24 @@ const local = cli.profiles.getProfile('local');
 // Use profiles in your application; do not log stored credentials.
 ```
 
-Profile selection and OAuth authentication in other commands are future scope. Download commands still use their existing bearer-token configuration; stored profiles do not change download behavior. Library consumers can inject `homeDirectory` into `createDefaultCamundaCli` or `JsonProfileRepositoryAdapter` for isolated storage, and provide `addProfileInPort` to `createCamundaCli` to handle the new command.
+Download commands still use their existing bearer-token configuration; stored profiles do not change download behavior. Library consumers can inject `homeDirectory` into `createDefaultCamundaCli` or `JsonProfileRepositoryAdapter` for isolated storage, and provide `addProfileInPort` to `createCamundaCli` to handle the add command.
+
+## Open incidents (Camunda 8.7)
+
+Select a stored profile explicitly to list open incidents:
+
+```bash
+npx @lmoesle/camunda-cli incidents --profile remote
+npx @lmoesle/camunda-cli incidents --profile remote --json
+```
+
+The command requires nonblank `operateUrl`, `oAuthUrl`, `clientId`, and `clientSecret` in the selected profile. Both URLs must use HTTP(S) without embedded credentials, query parameters, or fragments. Set `operateUrl` to the service root (including the SaaS cluster ID or reverse-proxy path), or to that root followed by `/v1`. The CLI preserves path segments and ignores trailing slashes. It does not fall back to `baseUrl`, `zeebeUrl`, environment variables, or default endpoints.
+
+Set a nonblank `audience` for SaaS profiles: the CLI requires it when the Operate hostname ends in `.operate.camunda.io` or the OAuth hostname is `login.cloud.camunda.io`. Operate SaaS uses `operate.camunda.io`; the CLI sends your configured audience unchanged. Self-Managed profiles can omit `audience`, but a supplied audience must not be blank. The command obtains a bearer token with an OAuth client-credentials form request to `oAuthUrl`, preserves secret bytes, disables redirects, and keeps the token only in memory for that invocation. Requests time out after 30 seconds; authentication or request failures abort without retries or partial output.
+
+“Open” means Operate state `ACTIVE`, excluding `RESOLVED`, `MIGRATED`, and `PENDING`. The command uses the stable [Operate v1 incident search API](https://docs.camunda.io/docs/8.7/apis-tools/operate-api/specifications/search-3/) (`POST /v1/incidents/search`), not the v2 alpha API. It lists every matching incident visible to the credentials, without process or tenant filters, and follows the complete `sortValues` cursor until an empty page, regardless of reported totals or short pages.
+
+The default table shows incident key, process-instance key, type, creation time, and the full message. It escapes terminal controls and newlines visibly. `--json` prints one JSON array (`[]` when empty), preserves original messages, and represents int64 key fields as exact decimal strings. The CLI sends startup notices for incidents to stderr and writes no successful output until every page succeeds. Library consumers can inject `writeDiagnostic` separately from `writeLine`, or supply `listIncidentsInPort` to `createCamundaCli`.
 
 ## Development
 

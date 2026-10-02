@@ -2,6 +2,7 @@ import { Command, Option } from 'commander';
 import { DownloadFilesInPort } from '../../application/ports/in/downloadFilesInPort';
 import { SayHelloWorldInPort } from '../../application/ports/in/helloWorldInPort';
 import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/addProfileInPort';
+import { ListIncidentsCommand, ListIncidentsInPort } from '../../application/ports/in/listIncidentsInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -13,6 +14,7 @@ export interface CamundaCliDependencies {
     downloadFilesInPort: DownloadFilesInPort;
     sayHelloWorldInPort: SayHelloWorldInPort;
     addProfileInPort?: AddProfileInPort;
+    listIncidentsInPort?: ListIncidentsInPort;
     version?: string;
 }
 
@@ -23,6 +25,17 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .name('camunda-cli')
         .description('CLI for interacting with Camunda 8')
         .version(dependencies.version ?? cliVersion);
+
+    program.command('incidents')
+        .description('List all ACTIVE incidents through the Camunda 8.7 Operate API')
+        .requiredOption('--profile <name>', 'stored profile name (required)')
+        .option('--json', 'print a JSON array instead of a table')
+        .action(async (options: ListIncidentsCommand) => {
+            if (!dependencies.listIncidentsInPort) {
+                throw new Error('The incidents command requires a ListIncidentsInPort dependency.');
+            }
+            await dependencies.listIncidentsInPort.listIncidents(options);
+        });
 
     program.command('add')
         .description('Add stored configuration')

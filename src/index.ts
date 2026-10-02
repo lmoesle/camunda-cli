@@ -33,3 +33,11 @@ export { JsonProfileRepositoryAdapter } from './adapter/out/jsonProfileRepositor
 export { createProfile } from './domain/profile';
 export type { Profile } from './domain/profile';
 export type { ModelerFile, ModelerFileMetadata, ModelerVersion, ModelerVersionMetadata } from './domain/modelerFile';
+export { ListIncidentsUseCase } from './application/usecases/listIncidentsUseCase';
+export { AxiosIncidentAdapter } from './adapter/out/axiosIncidentAdapter';
+export { ConsoleIncidentsPresenter } from './adapter/out/consoleIncidentsPresenter';
+export type { Incident } from './domain/incident';
+export type { ListIncidentsCommand, ListIncidentsInPort } from './application/ports/in/listIncidentsInPort';
+export type { IncidentProfileOutPort } from './application/ports/out/incidentProfileOutPort';
+export type { IncidentConnection, IncidentSearchOutPort } from './application/ports/out/incidentSearchOutPort';
+export type { ShowIncidentsOutPort } from './application/ports/out/showIncidentsOutPort';
