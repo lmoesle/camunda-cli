@@ -167,6 +167,43 @@ Set a nonblank `audience` for SaaS profiles: the CLI requires it when the Operat
 
 The default table shows incident key, process-instance key, type, creation time, and the full message. It escapes terminal controls and newlines visibly. `--json` prints one JSON array (`[]` when empty), preserves original messages, and represents int64 key fields as exact decimal strings. The CLI sends startup notices for incidents to stderr and writes no successful output until every page succeeds. Library consumers can inject `writeDiagnostic` separately from `writeLine`, or supply `listIncidentsInPort` to `createCamundaCli`.
 
+## Deploy resources (Camunda 8.7)
+
+Deploy one file, a shallow directory, or a directory with subdirectories:
+
+```bash
+npx @lmoesle/camunda-cli deploy "models/order process.bpmn" --profile remote
+npx @lmoesle/camunda-cli deploy models --profile remote
+npx @lmoesle/camunda-cli deploy models --profile remote --recursive
+# -r is an alias for --recursive
+```
+
+The required `--profile` selects a stored, case-sensitive profile. Set `baseUrl` to the HTTP(S) REST gateway root, including any cluster or reverse-proxy path prefix, or to that root followed by `/v2`. The CLI ignores trailing slashes and posts to `/v2/deployments`. URLs cannot contain embedded credentials, query parameters, or fragments. Deployment does not use `zeebeUrl`, `operateUrl`, or environment-variable fallbacks.
+
+For OAuth, configure nonblank `oAuthUrl`, `clientId`, and `clientSecret`. A supplied `audience` must be nonblank; SaaS profiles (`*.zeebe.camunda.io` or OAuth at `login.cloud.camunda.io`) require it, typically `zeebe.camunda.io`. The CLI preserves credentials and audience unchanged and obtains one fresh client-credentials token per invocation. For example (dummy credentials only):
+
+```bash
+npx @lmoesle/camunda-cli add profile --name remote \
+  --base-url https://bru-1.zeebe.camunda.io/your-cluster \
+  --oauth-url https://login.cloud.camunda.io/oauth/token \
+  --client-id dummy-client --client-secret dummy-secret --audience zeebe.camunda.io
+```
+
+For a gateway explicitly configured with authentication disabled, omit **all** OAuth fields:
+
+```bash
+npx @lmoesle/camunda-cli add profile --name local --base-url http://localhost:8080
+npx @lmoesle/camunda-cli deploy models --profile local
+```
+
+This does not imply that default C8Run accepts unauthenticated requests. Cookie and Basic authentication are not supported. Partial or blank OAuth configuration fails before any request. Stored secrets remain unencrypted.
+
+- Only regular files with exact, case-sensitive `.bpmn`, `.dmn`, or `.form` suffixes qualify. Directory scans skip other entries and symlinks, and never traverse symlink directories. Explicit symlinks, special files, unsupported files, missing/unreadable inputs, and directories with no eligible files produce errors before HTTP requests.
+- The CLI discovers files in lexicographic path order before making requests, then reads and deploys them sequentially. It preserves each original basename and binary content without parsing or rewriting resources.
+- **Each file has its own deployment POST and independent transaction.** Resources never share a request, even when they have the same basename. Cross-file same-deployment bindings cannot work with separate deployments; the CLI does not resolve dependencies or invent dependency ordering.
+- Each successful deployment prints its path and exact deployment key immediately. A final summary appears only after all files succeed. On failure, the CLI stops, reports the failed file and success count, and leaves prior successes committed. A timeout or malformed response can leave the failed request's outcome uncertain; check the gateway before rerunning.
+- OAuth and deployment requests disable redirects, time out after 30 seconds, and never retry automatically. Paths escape terminal controls visibly; startup notices for deploy go to stderr. Library consumers can provide `deployFilesInPort` to `createCamundaCli`.
+
 ## Development
 
 - `npm run lint` lints source and test files.

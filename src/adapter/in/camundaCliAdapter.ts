@@ -3,6 +3,7 @@ import { DownloadFilesInPort } from '../../application/ports/in/downloadFilesInP
 import { SayHelloWorldInPort } from '../../application/ports/in/helloWorldInPort';
 import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/addProfileInPort';
 import { ListIncidentsCommand, ListIncidentsInPort } from '../../application/ports/in/listIncidentsInPort';
+import { DeployFilesCommand, DeployFilesInPort } from '../../application/ports/in/deployFilesInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -15,6 +16,7 @@ export interface CamundaCliDependencies {
     sayHelloWorldInPort: SayHelloWorldInPort;
     addProfileInPort?: AddProfileInPort;
     listIncidentsInPort?: ListIncidentsInPort;
+    deployFilesInPort?: DeployFilesInPort;
     version?: string;
 }
 
@@ -25,6 +27,16 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .name('camunda-cli')
         .description('CLI for interacting with Camunda 8')
         .version(dependencies.version ?? cliVersion);
+
+    program.command('deploy')
+        .description('Deploy each .bpmn, .dmn, or .form file independently to Camunda 8.7')
+        .argument('<path>', 'file or directory to deploy')
+        .requiredOption('--profile <name>', 'stored profile name (required)')
+        .option('-r, --recursive', 'include subdirectories')
+        .action(async (path: string, options: Omit<DeployFilesCommand, 'path'>) => {
+            if (!dependencies.deployFilesInPort) throw new Error('The deploy command requires a DeployFilesInPort dependency.');
+            await dependencies.deployFilesInPort.deployFiles({ ...options, path });
+        });
 
     program.command('incidents')
         .description('List all ACTIVE incidents through the Camunda 8.7 Operate API')
