@@ -13,6 +13,10 @@ import { ProfileCache, ProfileReadApi } from '../shared/profileCache';
 import { AxiosIncidentAdapter } from '../adapter/out/axiosIncidentAdapter';
 import { ConsoleIncidentsPresenter } from '../adapter/out/consoleIncidentsPresenter';
 import { ListIncidentsUseCase } from '../application/usecases/listIncidentsUseCase';
+import { DeployFilesUseCase } from '../application/usecases/deployFilesUseCase';
+import { LocalDeploymentFilesAdapter } from '../adapter/out/localDeploymentFilesAdapter';
+import { AxiosDeploymentAdapter } from '../adapter/out/axiosDeploymentAdapter';
+import { ConsoleDeploymentsPresenter } from '../adapter/out/consoleDeploymentsPresenter';
 
 export interface CamundaCliBootstrapOptions {
     modelerApiBaseUrl?: string;
@@ -37,12 +41,12 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
 } {
     const writeLine = options.writeLine ?? console.log;
     const writeDiagnostic = options.writeDiagnostic ?? console.error;
-    let incidentCommand = false;
+    let diagnosticCommand = false;
     let deferred = deferNotices;
     const notices: string[] = [];
     const emitNotice = (line: string): void => {
         if (deferred) notices.push(line);
-        else (incidentCommand ? writeDiagnostic : writeLine)(line);
+        else (diagnosticCommand ? writeDiagnostic : writeLine)(line);
     };
     const flushNotices = (): void => {
         deferred = false;
@@ -64,12 +68,14 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
         sayHelloWorldInPort,
         addProfileInPort: new AddProfileUseCase(repository),
         listIncidentsInPort: new ListIncidentsUseCase(cache, new AxiosIncidentAdapter(), new ConsoleIncidentsPresenter(writeLine)),
+        deployFilesInPort: new DeployFilesUseCase(cache, new LocalDeploymentFilesAdapter(), new AxiosDeploymentAdapter(),
+            new ConsoleDeploymentsPresenter(writeLine)),
         version: options.version,
     });
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        incidentCommand = command.name() === 'incidents';
+        diagnosticCommand = ['incidents', 'deploy'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {

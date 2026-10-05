@@ -41,3 +41,13 @@ export type { ListIncidentsCommand, ListIncidentsInPort } from './application/po
 export type { IncidentProfileOutPort } from './application/ports/out/incidentProfileOutPort';
 export type { IncidentConnection, IncidentSearchOutPort } from './application/ports/out/incidentSearchOutPort';
 export type { ShowIncidentsOutPort } from './application/ports/out/showIncidentsOutPort';
+export { DeployFilesUseCase } from './application/usecases/deployFilesUseCase';
+export { LocalDeploymentFilesAdapter } from './adapter/out/localDeploymentFilesAdapter';
+export { AxiosDeploymentAdapter } from './adapter/out/axiosDeploymentAdapter';
+export { ConsoleDeploymentsPresenter } from './adapter/out/consoleDeploymentsPresenter';
+export type { DeployFilesCommand, DeployFilesInPort } from './application/ports/in/deployFilesInPort';
+export type { DeploymentFilesOutPort } from './application/ports/out/deploymentFilesOutPort';
+export type { DeploymentOutPort, DeploymentSession } from './application/ports/out/deploymentOutPort';
+export type { DeploymentProfileOutPort } from './application/ports/out/deploymentProfileOutPort';
+export type { ShowDeploymentsOutPort } from './application/ports/out/showDeploymentsOutPort';
+export type { DeploymentConnection, DeploymentResource } from './domain/deployment';
