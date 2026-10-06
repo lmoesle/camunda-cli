@@ -6,7 +6,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { AxiosMigrationAdapter, ConsoleMigrationsPresenter, createCamundaCli, migrationConnection, migrationPlan,
     MigrateProcessInstancesUseCase, Profile, ListIncidentsUseCase, createDefaultCamundaCli, runDefaultCamundaCli,
-    JsonProfileRepositoryAdapter } from '../src';
+    JsonProfileRepositoryAdapter, MigrationBatchFailure } from '../src';
 
 const entry = { processDefinition: 'processDefinitionId', sourceVersion: 'v1', targetVersion: 'v2',
     mappingInstructions: [{ sourceElementId: 'Task_Old', targetElementId: 'Task_New' }] };
@@ -20,7 +20,7 @@ function orchestration() {
     const searchActiveInstances = jest.fn(async (source: { key: string }) => [instance('10', source.key)]);
     const migrate = jest.fn().mockResolvedValue(undefined);
     const connect = jest.fn().mockResolvedValue({ searchDefinitions, searchActiveInstances, migrate });
-    const presenter = { showMigrated: jest.fn(), showSummary: jest.fn() };
+    const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
     return { searchDefinitions, searchActiveInstances, migrate, connect, presenter,
         usecase: new MigrateProcessInstancesUseCase({ getProfile: () => local }, { connect }, presenter) };
 }
@@ -77,6 +77,17 @@ describe('migration plan validation', () => {
 });
 
 describe('migration preflight and sequential execution', () => {
+    test.each(['showMigrated', 'showFailed'] as const)('does not catch %s presenter errors as request failures', async (method) => {
+        const state = orchestration();
+        state.searchActiveInstances.mockResolvedValueOnce([instance('10'), instance('11')]);
+        if (method === 'showFailed') state.migrate.mockRejectedValueOnce(new Error('HTTP 409'));
+        const error = new Error('Presenter failed.');
+        state.presenter[method].mockImplementation(() => { throw error; });
+        await expect(state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] })).rejects.toBe(error);
+        expect(state.migrate).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showFailed).toHaveBeenCalledTimes(method === 'showFailed' ? 1 : 0);
+        expect(state.presenter.showSummary).not.toHaveBeenCalled();
+    });
     test.each(['target definition resolution', 'instance discovery'])('performs zero mutations when later %s fails', async (stage) => {
         const state = orchestration();
         if (stage === 'target definition resolution') {
@@ -100,7 +111,7 @@ describe('migration preflight and sequential execution', () => {
         state.migrate.mockImplementation(async () => { expect(state.searchActiveInstances).toHaveBeenCalledTimes(2); });
         await state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry, { ...entry, sourceVersion: 2, targetVersion: 3 }] });
         expect(state.migrate.mock.calls.map((call) => call.slice(0, 2))).toEqual([['10', '2'], ['11', '2'], ['20', '3']]);
-        expect(state.presenter.showSummary).toHaveBeenCalledWith(3);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(3, 0);
     });
     test.each([[], [definition(), definition('3')]].map((definitions) => ({ definitions })))('rejects missing/ambiguous definitions', async ({ definitions }) => {
         const state = orchestration(); state.searchDefinitions.mockResolvedValueOnce(definitions);
@@ -118,17 +129,103 @@ describe('migration preflight and sequential execution', () => {
             .rejects.toThrow(/duplicate/);
         expect(state.migrate).not.toHaveBeenCalled();
     });
-    test('zero candidates succeeds; first failure stops and retains previous successes', async () => {
+    test('resets counters across empty, partially failed and successful invocations', async () => {
         const state = orchestration(); state.searchActiveInstances.mockResolvedValueOnce([]);
         await state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] });
-        expect(state.presenter.showSummary).toHaveBeenCalledWith(0);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(0, 0);
         state.presenter.showSummary.mockClear();
         state.searchActiveInstances.mockResolvedValueOnce([instance('10'), instance('11'), instance('12')]);
         state.migrate.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('secret HTTP 409'));
-        await expect(state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] })).rejects.toThrow(/instance 11 after 1.*HTTP 409.*committed.*uncertain/);
+        await expect(state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] })).rejects.toMatchObject({
+            successfulCount: 2, failedCount: 1,
+        });
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringMatching(/instance 11 after 1.*HTTP 409.*committed.*uncertain/));
+        expect(state.migrate).toHaveBeenCalledTimes(3);
+        expect(state.presenter.showMigrated).toHaveBeenCalledTimes(2);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(2, 1);
+        state.presenter.showSummary.mockClear();
+        await state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] });
+        expect(state.presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(1, 0);
+    });
+});
+
+describe('migration failure continuation regression', () => {
+    function regressionState() {
+        const state = orchestration();
+        const presenter = { ...state.presenter, showFailed: jest.fn() };
+        return { ...state, presenter,
+            usecase: new MigrateProcessInstancesUseCase({ getProfile: () => local }, { connect: state.connect }, presenter) };
+    }
+
+    test('attempts every snapshot in plan/key order after failure, without retries', async () => {
+        const state = regressionState();
+        state.searchActiveInstances.mockResolvedValueOnce([instance('12'), instance('10'), instance('11')])
+            .mockResolvedValueOnce([instance('21', '2'), instance('20', '2')]);
+        state.migrate.mockImplementation(async (key: string) => {
+            expect(state.searchActiveInstances).toHaveBeenCalledTimes(2);
+            if (key === '11') throw new Error('HTTP 409 dummy-secret');
+        });
+        // Recover the rejection so the baseline fails on early stopping, not on changed error wording.
+        const result = await state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry,
+            { ...entry, sourceVersion: 2, targetVersion: 3 }] }).catch((error: unknown) => error);
+        expect(state.migrate.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+            ['10', '2'], ['11', '2'], ['12', '2'], ['20', '3'], ['21', '3'],
+        ]);
+        expect(state.migrate).toHaveBeenCalledTimes(5);
+        expect(state.presenter.showMigrated.mock.calls).toEqual([
+            ['10', migrationPlan([entry])[0]], ['12', migrationPlan([entry])[0]],
+            ['20', migrationPlan([{ ...entry, sourceVersion: 2, targetVersion: 3 }])[0]],
+            ['21', migrationPlan([{ ...entry, sourceVersion: 2, targetVersion: 3 }])[0]],
+        ]);
+        expect(result).toBeInstanceOf(Error);
+    });
+
+    test('reports a sanitized failure and exactly one final confirmed-success/failure summary before rejecting', async () => {
+        const state = regressionState();
+        state.searchActiveInstances.mockResolvedValueOnce([instance('10'), instance('11'), instance('12')]);
+        state.migrate.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('HTTP 409 dummy-secret'))
+            .mockResolvedValueOnce(undefined);
+        const result = await state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] })
+            .catch((error: unknown) => error);
+        expect(state.presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(2, 1);
+        expect(state.presenter.showFailed).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showFailed).toHaveBeenCalledWith('Migration failed for instance 11 after 1 successful migrations (HTTP 409). Prior successes remain committed; the failed request outcome may be uncertain. No retry or rollback was attempted.');
+        expect(state.presenter.showSummary.mock.invocationCallOrder[0])
+            .toBeGreaterThan(state.presenter.showMigrated.mock.invocationCallOrder[1]);
+        expect(state.presenter.showSummary.mock.invocationCallOrder[0])
+            .toBeGreaterThan(state.presenter.showFailed.mock.invocationCallOrder[0]);
+        expect(result).toBeInstanceOf(Error);
+        expect((result as Error).message).not.toContain('dummy-secret');
+    });
+
+    test('attempts all failed requests once and reports zero confirmed successes', async () => {
+        const state = regressionState();
+        state.searchActiveInstances.mockResolvedValueOnce([instance('11'), instance('10')]);
+        state.migrate.mockRejectedValue(new Error('dummy-secret network failure'));
+        const result = await state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] })
+            .catch((error: unknown) => error);
+        expect(state.migrate.mock.calls.map((call) => call[0])).toEqual(['10', '11']);
         expect(state.migrate).toHaveBeenCalledTimes(2);
-        expect(state.presenter.showMigrated).toHaveBeenCalledTimes(1);
-        expect(state.presenter.showSummary).not.toHaveBeenCalled();
+        expect(state.presenter.showMigrated).not.toHaveBeenCalled();
+        expect(state.presenter.showFailed).toHaveBeenCalledTimes(2);
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toContain('dummy-secret');
+        expect(state.presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(0, 2);
+        expect(result).toBeInstanceOf(Error);
+    });
+
+    test.each([0, 2])('reports one summary with zero failures for %i successful candidates', async (count) => {
+        const state = regressionState();
+        state.searchActiveInstances.mockResolvedValueOnce(count === 0 ? [] : [instance('10'), instance('11')]);
+        await expect(state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] }))
+            .resolves.toBeUndefined();
+        expect(state.migrate).toHaveBeenCalledTimes(count);
+        expect(state.presenter.showMigrated).toHaveBeenCalledTimes(count);
+        expect(state.presenter.showFailed).not.toHaveBeenCalled();
+        expect(state.presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(count, 0);
     });
 });
 
@@ -168,6 +265,39 @@ describe('migration profile authentication', () => {
 });
 
 describe('Operate lossless discovery and migration HTTP', () => {
+    test('snapshots every discovery page before writes and attempts later-page candidates after failure', async () => {
+        const { adapter, post } = http();
+        const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
+        const events: string[] = [];
+        post.mockImplementation(async (url: string, data: string) => {
+            const request = JSON.parse(data) as { filter?: { version: number }; searchAfter?: string[] };
+            if (url.endsWith('/migration')) {
+                events.push(url);
+                expect(events.filter((event) => event === 'discovery')).toHaveLength(3);
+                if (url.includes('/10/')) throw new Error('dummy-secret network failure');
+                expect(presenter.showFailed).toHaveBeenCalledTimes(1);
+                return response('', 204);
+            }
+            if (url.includes('process-definitions')) {
+                const version = request.filter!.version;
+                return response(JSON.stringify({ items: request.searchAfter ? [] : [definition(String(version), version)],
+                    sortValues: [String(version)] }));
+            }
+            events.push('discovery');
+            const items = !request.searchAfter ? [instance('10')] : request.searchAfter[0] === '10' ? [instance('20')] : [];
+            return response(JSON.stringify({ items, sortValues: [items[0]?.key] }));
+        });
+        const usecase = new MigrateProcessInstancesUseCase({ getProfile: () => local }, adapter, presenter);
+        await expect(usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] }))
+            .rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(events).toEqual(['discovery', 'discovery', 'discovery',
+            `${connection.gatewayUrl}/process-instances/10/migration`, `${connection.gatewayUrl}/process-instances/20/migration`]);
+        expect(presenter.showMigrated).toHaveBeenCalledTimes(1);
+        expect(presenter.showMigrated).toHaveBeenCalledWith('20', migrationPlan([entry])[0]);
+        expect(presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(presenter.showSummary).toHaveBeenCalledWith(1, 1);
+        expect(presenter.showSummary.mock.invocationCallOrder[0]).toBeGreaterThan(post.mock.invocationCallOrder[post.mock.calls.length - 1]);
+    });
     test.each(['unexpected dummy-secret content', ' ', '\n', { secret: 'dummy-secret' }, [], 0, false])(
         'rejects nonempty 204 content safely (%j)', async (data) => {
             const { adapter, post } = http(); const session = await adapter.connect(connection);
@@ -183,7 +313,7 @@ describe('Operate lossless discovery and migration HTTP', () => {
         await expect(session.migrate('10', '2', [])).resolves.toBeUndefined();
         expect(post).toHaveBeenCalledTimes(1);
     });
-    test('stops after nonempty 204 without counting it or presenting a final summary', async () => {
+    test('continues after nonempty 204 without counting the failed request as a success', async () => {
         const { adapter, post } = http();
         post.mockResolvedValueOnce(response(JSON.stringify({ items: [definition()], sortValues: ['1'] })))
             .mockResolvedValueOnce(response('{"items":[]}'))
@@ -194,18 +324,22 @@ describe('Operate lossless discovery and migration HTTP', () => {
             .mockResolvedValueOnce(response('', 204))
             .mockResolvedValueOnce(response('unexpected dummy-secret content', 204))
             .mockResolvedValueOnce(response('', 204));
-        const presenter = { showMigrated: jest.fn(), showSummary: jest.fn() };
+        const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
         const usecase = new MigrateProcessInstancesUseCase({ getProfile: () => local }, adapter, presenter);
         const migration = usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: [entry] });
-        await expect(migration).rejects.toThrow(/instance 11 after 1 successful migrations.*HTTP 204.*remain committed.*uncertain/);
+        await expect(migration).rejects.toMatchObject({ successfulCount: 2, failedCount: 1 });
         await expect(migration).rejects.not.toThrow('dummy-secret');
+        expect(presenter.showFailed).toHaveBeenCalledWith(expect.stringMatching(/instance 11 after 1 successful migrations.*HTTP 204.*remain committed.*uncertain/));
+        expect(JSON.stringify(presenter.showFailed.mock.calls)).not.toContain('dummy-secret');
         expect(post.mock.calls.filter(([url]) => url.endsWith('/migration')).map(([url]) => url)).toEqual([
             `${connection.gatewayUrl}/process-instances/10/migration`,
             `${connection.gatewayUrl}/process-instances/11/migration`,
+            `${connection.gatewayUrl}/process-instances/12/migration`,
         ]);
-        expect(presenter.showMigrated).toHaveBeenCalledTimes(1);
+        expect(presenter.showMigrated).toHaveBeenCalledTimes(2);
         expect(presenter.showMigrated).toHaveBeenCalledWith('10', migrationPlan([entry])[0]);
-        expect(presenter.showSummary).not.toHaveBeenCalled();
+        expect(presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(presenter.showSummary).toHaveBeenCalledWith(2, 1);
     });
     test('includes ACTIVE instances with incidents without an incident filter', async () => {
         const { adapter, post } = http(); const session = await adapter.connect(connection);
@@ -326,6 +460,49 @@ describe('migration CLI and presentation', () => {
         new ConsoleMigrationsPresenter(write).showMigrated('10', { ...migrationPlan([entry])[0], processDefinition: 'id\u001b\n\u202e' });
         expect(write.mock.calls[0][0]).toContain('id\\u001b\\u000a\\u202e');
     });
+    test('routes successes and summary to stdout and failures to diagnostics', () => {
+        const output = jest.fn(); const diagnostic = jest.fn();
+        const presenter = new ConsoleMigrationsPresenter(output, diagnostic);
+        presenter.showMigrated('10', migrationPlan([entry])[0]);
+        presenter.showFailed('Safe migration failure.');
+        presenter.showSummary(1, 2);
+        expect(output.mock.calls).toEqual([
+            ['Migrated instance 10: processDefinitionId v1 -> v2.'], ['Migrated 1 process instance(s). 2 failed.'],
+        ]);
+        expect(diagnostic.mock.calls).toEqual([['Safe migration failure.']]);
+    });
+    test('defaults standalone failure presentation to console.error', () => {
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            new ConsoleMigrationsPresenter(jest.fn()).showFailed('Safe migration failure.');
+            expect(diagnostic).toHaveBeenCalledWith('Safe migration failure.');
+        } finally { diagnostic.mockRestore(); }
+    });
+    test('bootstrap sends batch failures to injected diagnostics before the next attempt', async () => {
+        const home = await fs.mkdtemp(path.join(tmpdir(), 'cli-migrate-'));
+        const output = jest.fn(); const diagnostic = jest.fn();
+        const events: string[] = [];
+        try {
+            await new JsonProfileRepositoryAdapter(home).addProfile(local);
+            const migrate = jest.fn(async (key: string) => {
+                events.push(key);
+                if (key === '10') throw new Error('HTTP 401 dummy-secret');
+                expect(diagnostic).toHaveBeenCalledWith(expect.stringMatching(/instance 10 after 0.*HTTP 401/));
+            });
+            jest.spyOn(AxiosMigrationAdapter.prototype, 'connect').mockResolvedValue({
+                searchDefinitions: async (_id, version) => [definition(String(version), version)],
+                searchActiveInstances: async () => [instance('10'), instance('11')], migrate,
+            });
+            await expect(runDefaultCamundaCli(['node', 'cli', 'migrate', '--profile', 'selected', '--migrationPlan', JSON.stringify([entry])],
+                { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toMatchObject({ successfulCount: 1, failedCount: 1 });
+            expect(events).toEqual(['10', '11']);
+            expect(diagnostic).toHaveBeenCalledTimes(1);
+            expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('dummy-secret');
+            expect(output.mock.calls).toEqual([
+                ['Migrated instance 11: processDefinitionId v1 -> v2.'], ['Migrated 1 process instance(s). 1 failed.'],
+            ]);
+        } finally { jest.restoreAllMocks(); await fs.rm(home, { recursive: true, force: true }); }
+    });
     test('default runtime uses cached profiles; startup notices go to diagnostics', async () => {
         const home = await fs.mkdtemp(path.join(tmpdir(), 'cli-migrate-'));
         const output = jest.fn(); const diagnostic = jest.fn();
@@ -344,7 +521,7 @@ describe('migration CLI and presentation', () => {
             });
             await runtime.parseAsync(['migrate', '--profile', 'selected', '--migrationPlan', JSON.stringify([entry])], { from: 'user' });
             expect(connect).toHaveBeenCalledWith(connection);
-            expect(output).toHaveBeenCalledWith('Migrated 0 process instance(s).');
+            expect(output).toHaveBeenCalledWith('Migrated 0 process instance(s). 0 failed.');
         } finally { jest.restoreAllMocks(); await fs.rm(home, { recursive: true, force: true }); }
     });
 });

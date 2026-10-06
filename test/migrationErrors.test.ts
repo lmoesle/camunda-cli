@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
-import { AxiosMigrationAdapter, MigrateProcessInstancesUseCase, MigrationPlanEntry, MissingMigrationElement, Profile } from '../src';
+import { AxiosMigrationAdapter, MigrateProcessInstancesUseCase, MigrationBatchFailure, MigrationPlanEntry, MissingMigrationElement, Profile } from '../src';
 
 const key = '2251799945862523';
 const plan: MigrationPlanEntry = { processDefinition: 'Process_SendCrmMailToCustomer', sourceVersion: 9, targetVersion: 11,
@@ -24,7 +24,7 @@ function setup(body: unknown, status: number | undefined = 400, entry = plan, ke
             : keys.map((instanceKey) => ({ key: instanceKey, processDefinitionKey: '9', state: 'ACTIVE' }));
         return { status: 200, data: JSON.stringify({ items, sortValues: [items[items.length - 1].key] }) };
     });
-    const presenter = { showMigrated: jest.fn(), showSummary: jest.fn() };
+    const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
     const usecase = new MigrateProcessInstancesUseCase({ getProfile: () => profile },
         new AxiosMigrationAdapter({ post } as unknown as AxiosInstance), presenter);
     return { post, migrate, presenter, run: () => usecase.migrateProcessInstances({ profile: 'dummy', migrationPlan: [entry] }) };
@@ -42,13 +42,16 @@ describe('safe migration rejection diagnostics', () => {
         const state = setup(body);
         state.migrate.mockRejectedValue(rejection);
         const publicFailure = state.run();
+        await expect(adapterFailure).rejects.toThrow(/HTTP 400/);
+        await expect(publicFailure).rejects.toBeInstanceOf(MigrationBatchFailure);
         for (const failure of [adapterFailure, publicFailure]) {
-            await expect(failure).rejects.toThrow(/HTTP 400/);
             await expect(failure).rejects.not.toThrow(/dummy-secret|dummy-token/);
             for (const field of ['cause', 'config', 'response', 'data']) {
                 await expect(failure).rejects.not.toHaveProperty(field);
             }
         }
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining('HTTP 400'));
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toMatch(/dummy-secret|dummy-token|Authorization|config|response/);
     });
 
     test.each([
@@ -56,21 +59,25 @@ describe('safe migration rejection diagnostics', () => {
         { side: 'target', detail: targetDetail, id: 'gateway_newDispatch', version: 11, other: 'source version 9' },
     ])('reports the missing $side element with local plan context', async ({ side, detail, id, version, other }) => {
         const state = setup(JSON.stringify(problem(detail)));
-        await expect(state.run()).rejects.toThrow(`Invalid migrationPlan for process '${plan.processDefinition}': ${side}ElementId '${id}' does not exist in ${side} version ${version} (${other}). Check every ${side}ElementId against version ${version}; Camunda reports only the first invalid mapping.`);
+        await expect(state.run()).rejects.toMatchObject({ successfulCount: 0, failedCount: 1 });
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining(`Invalid migrationPlan for process '${plan.processDefinition}': ${side}ElementId '${id}' does not exist in ${side} version ${version} (${other}). Check every ${side}ElementId against version ${version}; Camunda reports only the first invalid mapping.`));
         expect(state.migrate).toHaveBeenCalledTimes(1);
-        expect(state.presenter.showSummary).not.toHaveBeenCalled();
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(0, 1);
     });
 
-    test('stops on the second instance, preserves one success, and reports only the rejected mapping', async () => {
+    test('continues after multiple failures, preserves one success, and reports only the rejected mapping', async () => {
         const state = setup(JSON.stringify(problem()), 400, plan, ['2251799945862522', key, '2251799945862524']);
         state.migrate.mockResolvedValueOnce({ status: 204, data: '' });
         const failure = state.run();
-        await expect(failure).rejects.toThrow(`instance ${key} after 1 successful migrations (HTTP 400)`);
-        await expect(failure).rejects.toThrow('sourceElementId');
-        await expect(failure).rejects.not.toThrow('other_missing');
-        expect(state.migrate).toHaveBeenCalledTimes(2);
+        await expect(failure).rejects.toMatchObject({ successfulCount: 1, failedCount: 2 });
+        expect(state.presenter.showFailed).toHaveBeenCalledTimes(2);
+        expect(state.presenter.showFailed).toHaveBeenNthCalledWith(1, expect.stringContaining(`instance ${key} after 1 successful migrations (HTTP 400)`));
+        expect(state.presenter.showFailed).toHaveBeenNthCalledWith(1, expect.stringContaining('sourceElementId'));
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toContain('other_missing');
+        expect(state.migrate).toHaveBeenCalledTimes(3);
         expect(state.presenter.showMigrated).toHaveBeenCalledTimes(1);
-        expect(state.presenter.showSummary).not.toHaveBeenCalled();
+        expect(state.presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(1, 2);
     });
 
     test.each([
@@ -88,29 +95,40 @@ describe('safe migration rejection diagnostics', () => {
         JSON.stringify({ ...problem(), padding: 'dummy-secret'.repeat(7000) }),
         { ...problem(), secret: 'dummy-secret' },
     ])('falls back safely for unrecognized bodies (%#)', async (body) => {
-        const failure = setup(body).run();
-        await expect(failure).rejects.toThrow(/HTTP 400.*uncertain/);
+        const state = setup(body); const failure = state.run();
+        await expect(failure).rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringMatching(/HTTP 400.*uncertain/));
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toMatch(/Invalid migrationPlan|dummy-secret/);
         await expect(failure).rejects.not.toThrow(/Invalid migrationPlan|dummy-secret/);
     });
 
     test.each([401, 403, 409, 500])('never classifies HTTP %i as a missing element', async (status) => {
-        const failure = setup(JSON.stringify(problem()), status).run();
-        await expect(failure).rejects.toThrow(`HTTP ${status}`);
+        const state = setup(JSON.stringify(problem()), status); const failure = state.run();
+        await expect(failure).rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining(`HTTP ${status}`));
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toMatch(/Invalid migrationPlan|dummy-secret/);
         await expect(failure).rejects.not.toThrow(/Invalid migrationPlan|dummy-secret/);
     });
     test('network errors retain the safe uncertain-outcome warning', async () => {
         const state = setup(''); state.migrate.mockRejectedValue(new Error('dummy-secret network'));
         const failure = state.run();
-        await expect(failure).rejects.toThrow('outcome may be uncertain');
+        await expect(failure).rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining('outcome may be uncertain'));
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toMatch(/Invalid migrationPlan|dummy-secret/);
         await expect(failure).rejects.not.toThrow(/Invalid migrationPlan|dummy-secret/);
     });
     test('ignores unrelated problem fields even on recognized rejections', async () => {
-        const failure = setup(JSON.stringify({ ...problem(), headers: { Authorization: 'dummy-secret' }, instance: 'dummy-secret' })).run();
-        await expect(failure).rejects.toThrow('sourceElementId');
+        const state = setup(JSON.stringify({ ...problem(), headers: { Authorization: 'dummy-secret' }, instance: 'dummy-secret' }));
+        const failure = state.run();
+        await expect(failure).rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining('sourceElementId'));
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toContain('dummy-secret');
         await expect(failure).rejects.not.toThrow('dummy-secret');
     });
     test('title and detail suffice without optional problem fields', async () => {
-        await expect(setup(JSON.stringify({ title: 'INVALID_ARGUMENT', detail: sourceDetail })).run()).rejects.toThrow('sourceElementId');
+        const state = setup(JSON.stringify({ title: 'INVALID_ARGUMENT', detail: sourceDetail }));
+        await expect(state.run()).rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining('sourceElementId'));
     });
     test.each(['OAuth', 'discovery'])('does not classify a rejection from %s as migration validation', async (stage) => {
         const post = jest.fn().mockRejectedValue({ isAxiosError: true, response: { status: 400, data: JSON.stringify(problem()) } });
@@ -125,28 +143,31 @@ describe('safe migration rejection diagnostics', () => {
         const id = "quoted'\\\u001b\n\u202e\u061c\u200e\u200f" + 'x'.repeat(5000);
         const entry = { ...plan, processDefinition: id, mappingInstructions: [{ sourceElementId: id, targetElementId: 'target' }] };
         const detail = sourceDetail.replace('gateway_mailDispatch', id);
-        try { await setup(JSON.stringify(problem(detail)), 400, entry).run(); throw new Error('Expected rejection'); }
-        catch (error) {
-            const message = (error as Error).message;
-            expect(message).toContain('Invalid migrationPlan');
-            expect(message).toContain("quoted\\'\\\\\\u001b\\u000a\\u202e\\u061c\\u200e\\u200f");
-            // eslint-disable-next-line no-control-regex -- assert no literal terminal controls survive
-            expect(message).not.toMatch(/[\u001b\n\u202e\u061c\u200e\u200f]/);
-            expect(message.length).toBeLessThan(1500);
-        }
+        const state = setup(JSON.stringify(problem(detail)), 400, entry);
+        await expect(state.run()).rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(state.presenter.showFailed).toHaveBeenCalledTimes(1);
+        const message = state.presenter.showFailed.mock.calls[0][0] as string;
+        expect(message).toContain('Invalid migrationPlan');
+        expect(message).toContain("quoted\\'\\\\\\u001b\\u000a\\u202e\\u061c\\u200e\\u200f");
+        // eslint-disable-next-line no-control-regex -- assert no literal terminal controls survive
+        expect(message).not.toMatch(/[\u001b\n\u202e\u061c\u200e\u200f]/);
+        expect(message.length).toBeLessThan(1500);
     });
     test('external adapters can supply safe typed evidence without their arbitrary error message leaking', async () => {
         const rejection = new MissingMigrationElement('target', 1);
         rejection.message = 'dummy-secret';
         Object.assign(rejection, { cause: new Error('dummy-secret'), config: { token: 'dummy-secret' },
             response: { data: 'dummy-secret' }, data: 'dummy-secret' });
+        const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
         const usecase = new MigrateProcessInstancesUseCase({ getProfile: () => profile }, { connect: async () => ({
             searchDefinitions: async (id, version) => [{ key: String(version), version, bpmnProcessId: id }],
             searchActiveInstances: async () => [{ key, processDefinitionKey: '9', state: 'ACTIVE' }],
             migrate: async () => { throw rejection; },
-        }) }, { showMigrated: jest.fn(), showSummary: jest.fn() });
+        }) }, presenter);
         const failure = usecase.migrateProcessInstances({ profile: 'dummy', migrationPlan: [plan] });
-        await expect(failure).rejects.toThrow("targetElementId 'other_target' does not exist in target version 11");
+        await expect(failure).rejects.toBeInstanceOf(MigrationBatchFailure);
+        expect(presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining("targetElementId 'other_target' does not exist in target version 11"));
+        expect(JSON.stringify(presenter.showFailed.mock.calls)).not.toMatch(/dummy-secret|config|response/);
         await expect(failure).rejects.not.toThrow('dummy-secret');
         for (const field of ['cause', 'config', 'response', 'data']) {
             await expect(failure).rejects.not.toHaveProperty(field);
@@ -172,12 +193,13 @@ describe('safe migration rejection diagnostics', () => {
         await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
         try {
             const root = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-            const presenter = { showMigrated: jest.fn(), showSummary: jest.fn() };
+            const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
             const usecase = new MigrateProcessInstancesUseCase({ getProfile: () => ({ ...profile, baseUrl: root, operateUrl: root }) },
                 new AxiosMigrationAdapter(axios.create({ proxy: false })), presenter);
-            await expect(usecase.migrateProcessInstances({ profile: 'dummy', migrationPlan: [plan] })).rejects.toThrow(
-                "sourceElementId 'gateway_mailDispatch' does not exist in source version 9 (target version 11)");
-            expect(migrations).toBe(1); expect(presenter.showSummary).not.toHaveBeenCalled();
+            await expect(usecase.migrateProcessInstances({ profile: 'dummy', migrationPlan: [plan] })).rejects.toBeInstanceOf(MigrationBatchFailure);
+            expect(presenter.showFailed).toHaveBeenCalledWith(expect.stringContaining(
+                "sourceElementId 'gateway_mailDispatch' does not exist in source version 9 (target version 11)"));
+            expect(migrations).toBe(1); expect(presenter.showSummary).toHaveBeenCalledWith(0, 1);
         } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
     });
 });

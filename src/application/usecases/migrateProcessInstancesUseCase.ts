@@ -1,4 +1,4 @@
-import { migrationConnection, MigrationDefinition, migrationPlan, MissingMigrationElement } from '../../domain/migration';
+import { MigrationBatchFailure, migrationConnection, MigrationDefinition, migrationPlan, MissingMigrationElement } from '../../domain/migration';
 import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '../ports/in/migrateProcessInstancesInPort';
 import { MigrationOutPort } from '../ports/out/migrationOutPort';
 import { MigrationProfileOutPort } from '../ports/out/migrationProfileOutPort';
@@ -45,20 +45,24 @@ export class MigrateProcessInstancesUseCase implements MigrateProcessInstancesIn
             snapshots.push({ entry, target, instances });
         }
         let count = 0;
+        let failedCount = 0;
         for (const { entry, target, instances } of snapshots) {
             for (const instance of instances) {
                 try { await session.migrate(instance.key, target.key, entry.mappingInstructions); } catch (error) {
                     const status = error instanceof MissingMigrationElement ? `HTTP ${error.status}`
                         : error instanceof Error ? error.message.match(/HTTP \d{3}/)?.[0] : undefined;
                     const diagnostic = error instanceof MissingMigrationElement ? error.diagnostic(entry) : undefined;
-                    // eslint-disable-next-line preserve-caught-error -- Untrusted adapter causes can expose credentials despite the safe public diagnostic.
-                    throw new Error(`Migration failed for instance ${instance.key} after ${count} successful migrations${status ? ` (${status})` : ''}. ${diagnostic ? diagnostic + ' ' : ''}Prior successes remain committed; the failed request outcome may be uncertain. No retry or rollback was attempted.`);
+                    failedCount++;
+                    this.presenter.showFailed(`Migration failed for instance ${instance.key} after ${count} successful migrations${status ? ` (${status})` : ''}. ${diagnostic ? diagnostic + ' ' : ''}Prior successes remain committed; the failed request outcome may be uncertain. No retry or rollback was attempted.`);
+                    continue;
                 }
                 count++;
                 this.presenter.showMigrated(instance.key, entry);
             }
         }
-        this.presenter.showSummary(count);
+        this.presenter.showSummary(count, failedCount);
+        // Report the completed batch before rejecting, so callers can detect failure without duplicate CLI output.
+        if (failedCount > 0) throw new MigrationBatchFailure(count, failedCount);
     }
 }
 

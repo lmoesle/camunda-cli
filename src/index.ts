@@ -56,7 +56,7 @@ export { AxiosMigrationAdapter } from './adapter/out/axiosMigrationAdapter';
 export { ConsoleMigrationsPresenter } from './adapter/out/consoleMigrationsPresenter';
 export { LocalMigrationPlanFileAdapter } from './adapter/out/localMigrationPlanFileAdapter';
 export type { MigrationPlanFileOutPort } from './application/ports/out/migrationPlanFileOutPort';
-export { migrationPlan, migrationConnection, MissingMigrationElement } from './domain/migration';
+export { migrationPlan, migrationConnection, MissingMigrationElement, MigrationBatchFailure } from './domain/migration';
 export type { MigrationPlanEntry, MigrationConnection, MigrationDefinition, MigrationInstance } from './domain/migration';
 export type { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from './application/ports/in/migrateProcessInstancesInPort';
 export type { MigrationOutPort, MigrationSession } from './application/ports/out/migrationOutPort';

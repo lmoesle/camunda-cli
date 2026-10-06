@@ -16,7 +16,7 @@ function orchestration(files: MigrationPlanFileOutPort = new LocalMigrationPlanF
     const migrate = jest.fn().mockResolvedValue(undefined);
     const connect = jest.fn().mockResolvedValue({ searchDefinitions, searchActiveInstances, migrate });
     const getProfile = jest.fn(() => profile);
-    const presenter = { showMigrated: jest.fn(), showSummary: jest.fn() };
+    const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
     return { connect, migrate, getProfile, presenter,
         usecase: new MigrateProcessInstancesUseCase({ getProfile }, { connect }, presenter, files) };
 }
@@ -37,8 +37,27 @@ describe('migration plan JSON or file input', () => {
                 ['10', '2', entry.mappingInstructions], ['20', '3', []],
             ]);
             expect(state.presenter.showMigrated).toHaveBeenNthCalledWith(1, '10', migrationPlan(entries)[0]);
-            expect(state.presenter.showSummary).toHaveBeenCalledWith(2);
+            expect(state.presenter.showSummary).toHaveBeenCalledWith(2, 0);
         }
+    });
+
+    test('continues into later entries from a file after a migration failure', async () => {
+        const filename = path.join(directory, 'plan.json');
+        await fs.writeFile(filename, JSON.stringify(entries, null, 2));
+        const state = orchestration();
+        state.migrate.mockRejectedValueOnce(new Error('HTTP 409 dummy-secret'));
+        await expect(state.usecase.migrateProcessInstances({ profile: 'selected', migrationPlan: filename }))
+            .rejects.toMatchObject({ successfulCount: 1, failedCount: 1 });
+        expect(state.migrate.mock.calls).toEqual([
+            ['10', '2', entry.mappingInstructions], ['20', '3', []],
+        ]);
+        expect(state.presenter.showFailed).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showFailed).toHaveBeenCalledWith(expect.stringMatching(/instance 10 after 0.*HTTP 409/));
+        expect(JSON.stringify(state.presenter.showFailed.mock.calls)).not.toContain('dummy-secret');
+        expect(state.presenter.showMigrated).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showMigrated).toHaveBeenCalledWith('20', migrationPlan(entries)[1]);
+        expect(state.presenter.showSummary).toHaveBeenCalledTimes(1);
+        expect(state.presenter.showSummary).toHaveBeenCalledWith(1, 1);
     });
 
     test.each(['{}', '[]', 'null', 'true', 'false', '12', '"filename.json"', ' ', '\n',
@@ -156,7 +175,7 @@ describe('migration plan JSON or file input', () => {
         const argv = ['migrate', '--profile', 'selected', '--migrationPlan', filename];
         await cli.parseAsync(argv, { from: 'user' });
         expect(connect).toHaveBeenCalledTimes(1);
-        expect(output).toHaveBeenCalledWith('Migrated 0 process instance(s).');
+        expect(output).toHaveBeenCalledWith('Migrated 0 process instance(s). 0 failed.');
         connect.mockClear();
         await fs.writeFile(filename, 'dummy-secret malformed JSON');
         await expect(cli.parseAsync(argv, { from: 'user' })).rejects.toThrow('Migration plan must be valid JSON.');

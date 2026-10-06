@@ -16,6 +16,13 @@ export interface MigrationConnection {
     oauth?: { clientId: string; clientSecret: string; oAuthUrl: string; audience?: string; operateAudience?: string };
 }
 
+/** Counts for a completed, already-presented batch; contains no request error metadata. */
+export class MigrationBatchFailure extends Error {
+    constructor(readonly successfulCount: number, readonly failedCount: number) {
+        super(`Migration batch completed: ${successfulCount} successful migration(s), ${failedCount} failed.`);
+    }
+}
+
 /** Safe evidence from the migration boundary; contains no server text or error cause. */
 export class MissingMigrationElement extends Error {
     readonly status = 400;
