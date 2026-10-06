@@ -115,7 +115,9 @@ describe('retry validation and orchestration', () => {
     test('does not echo an untrusted resolution error', async () => {
         const state = orchestration();
         state.resolveIncident.mockRejectedValue(new Error('secret-token'));
-        await expect(state.usecase.retryIncident(command)).rejects.not.toThrow('secret-token');
+        const result = state.usecase.retryIncident(command);
+        await expect(result).rejects.not.toThrow('secret-token');
+        await expect(result).rejects.not.toHaveProperty('cause');
     });
 });
 
@@ -173,6 +175,9 @@ describe('retry HTTP session', () => {
             const result = usecase.retryIncident(command);
             await expect(result).rejects.toThrow(status ? `HTTP ${status}` : /failed/);
             await expect(result).rejects.not.toThrow(/dummy-secret|dummy-token|unsafe.example/);
+            await expect(result).rejects.not.toHaveProperty('cause');
+            await expect(result).rejects.not.toHaveProperty('config');
+            await expect(result).rejects.not.toHaveProperty('response');
             expect(request).toHaveBeenCalledTimes(phase === 'auth' ? 1 : phase === 'reset' ? 2 : 3);
             expect(output).not.toHaveBeenCalled();
         }

@@ -59,6 +59,7 @@ export class AxiosIncidentAdapter implements IncidentSearchOutPort {
         } catch (error) {
             const status = axios.isAxiosError(error) ? error.response?.status : undefined;
             const detail = typeof status === 'number' ? ` (HTTP ${status})` : '';
+            // eslint-disable-next-line preserve-caught-error -- Axios causes expose credentials, request configs, and response data.
             throw new Error(`${operation} failed${detail}. Check profile endpoints, credentials, permissions, and connectivity.`);
         }
         try {

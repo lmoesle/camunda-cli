@@ -45,6 +45,7 @@ export class AxiosDeploymentAdapter implements DeploymentOutPort {
             text = response.data;
         } catch (error) {
             const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+            // eslint-disable-next-line preserve-caught-error -- Axios causes expose credentials, request configs, and response data.
             throw new Error(`${operation} failed${typeof status === 'number' ? ` (HTTP ${status})` : ''}. ` +
                 'Check profile endpoints, credentials, permissions, and connectivity.');
         }

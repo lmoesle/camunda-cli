@@ -20,6 +20,7 @@ export class LocalDeploymentFilesAdapter implements DeploymentFilesOutPort {
             }
         } catch (error) {
             const reason = error instanceof Error && !('code' in error) ? error.message : 'Input is missing or unreadable.';
+            // eslint-disable-next-line preserve-caught-error -- Filesystem causes bypass the deployment path redaction.
             throw new Error(`Cannot discover ${safeDeploymentPath(inputPath)}. ${reason}`);
         }
         if (files.length === 0) throw new Error(`No supported regular files found in ${safeDeploymentPath(inputPath)}.`);
