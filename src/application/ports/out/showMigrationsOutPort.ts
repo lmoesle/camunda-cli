@@ -2,5 +2,6 @@ import { MigrationPlanEntry } from '../../../domain/migration';
 
 export interface ShowMigrationsOutPort {
     showMigrated(instanceKey: string, entry: MigrationPlanEntry): void;
-    showSummary(count: number): void;
+    showFailed(message: string): void;
+    showSummary(successfulCount: number, failedCount: number): void;
 }
