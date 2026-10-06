@@ -219,6 +219,8 @@ describe('incident presentation and command', () => {
         const table = output.mock.calls[0][0] as string;
         expect(table).toContain('INCIDENT KEY');
         expect(table).toContain('PROCESS INSTANCE KEY');
+        expect(table).toContain('JOB KEY');
+        expect(table).toContain(sample.jobKey);
         expect(table).toContain('CREATION TIME');
         expect(table).toContain(sample.key);
         expect(table).toContain('\\u000a\\u001b[31merror\\u009b0m\\u202e!');
@@ -228,6 +230,28 @@ describe('incident presentation and command', () => {
         output.mockClear();
         presenter.showIncidents([], false);
         expect(output.mock.calls[0][0]).toContain('MESSAGE');
+    });
+
+    test('missing job keys use a table placeholder but remain absent in JSON; job cells escape controls', () => {
+        const nonJob = { ...sample };
+        delete nonJob.jobKey;
+        const output = jest.fn();
+        const presenter = new ConsoleIncidentsPresenter(output);
+        presenter.showIncidents([nonJob, { ...sample, jobKey: 'exact\u001b\u202e' }], false);
+        const rows = (output.mock.calls[0][0] as string).split('\n');
+        expect(rows[1].split(' | ')[2].trim()).toBe('-');
+        expect(rows[2]).toContain('exact\\u001b\\u202e');
+        presenter.showIncidents([nonJob], true);
+        expect(JSON.parse(output.mock.calls[1][0])[0]).not.toHaveProperty('jobKey');
+    });
+
+    test('raw numeric jobKey above MAX_SAFE_INTEGER survives HTTP mapping and JSON presentation', async () => {
+        const { adapter, post } = mockAdapter();
+        post.mockResolvedValueOnce({ data: '{"access_token":"dummy"}' })
+            .mockResolvedValueOnce({ data: page() }).mockResolvedValueOnce({ data: empty });
+        const output = jest.fn();
+        new ConsoleIncidentsPresenter(output).showIncidents(await adapter.searchActiveIncidents(connection), true);
+        expect(JSON.parse(output.mock.calls[0][0])[0].jobKey).toBe('9007199254740999');
     });
 
     function command(listIncidentsInPort?: { listIncidents: jest.Mock }) {

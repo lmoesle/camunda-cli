@@ -1,4 +1,5 @@
 import { Profile } from './profile';
+import { restConnection } from './restConnection';
 
 export interface DeploymentConnection {
     deploymentsUrl: string;
@@ -11,33 +12,8 @@ export interface DeploymentResource {
 }
 
 export function deploymentConnection(profile: Profile): DeploymentConnection {
-    const root = endpoint(profile.baseUrl, 'baseUrl');
-    const deploymentsUrl = `${root}${root.endsWith('/v2') ? '' : '/v2'}/deployments`;
-    const fields = ['clientId', 'clientSecret', 'oAuthUrl', 'audience'] as const;
-    if (!fields.some((field) => Object.prototype.hasOwnProperty.call(profile, field))) return { deploymentsUrl };
-    const oAuthUrl = endpoint(profile.oAuthUrl, 'oAuthUrl');
-    const clientId = required(profile.clientId, 'clientId');
-    const clientSecret = required(profile.clientSecret, 'clientSecret');
-    const saas = new URL(root).hostname.endsWith('.zeebe.camunda.io') ||
-        new URL(oAuthUrl).hostname === 'login.cloud.camunda.io';
-    const audience = Object.prototype.hasOwnProperty.call(profile, 'audience') || saas
-        ? required(profile.audience, 'audience') : undefined;
-    return { deploymentsUrl, oauth: { oAuthUrl, clientId, clientSecret, audience } };
-}
-
-function required(value: string | undefined, field: string): string {
-    if (typeof value !== 'string' || !value.trim()) throw new Error(`Profile ${field} is required and must not be blank for deploy.`);
-    return value;
-}
-
-function endpoint(value: string | undefined, field: string): string {
-    const text = required(value, field).trim();
-    let url: URL;
-    try { url = new URL(text); } catch { throw new Error(`Profile ${field} must be a valid HTTP(S) endpoint URL.`); }
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || text.includes('?') || text.includes('#')) {
-        throw new Error(`Profile ${field} must use HTTP(S) without credentials, query, or fragment.`);
-    }
-    return url.toString().replace(/\/+$/, '');
+    const { restUrl, oauth } = restConnection(profile, 'deploy');
+    return oauth ? { deploymentsUrl: `${restUrl}/deployments`, oauth } : { deploymentsUrl: `${restUrl}/deployments` };
 }
 
 export function safeDeploymentPath(value: string): string {

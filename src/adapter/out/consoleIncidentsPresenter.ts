@@ -10,8 +10,8 @@ export class ConsoleIncidentsPresenter implements ShowIncidentsOutPort {
             return;
         }
         const rows = [
-            ['INCIDENT KEY', 'PROCESS INSTANCE KEY', 'TYPE', 'CREATION TIME', 'MESSAGE'],
-            ...incidents.map((incident) => [incident.key, incident.processInstanceKey, incident.type,
+            ['INCIDENT KEY', 'PROCESS INSTANCE KEY', 'JOB KEY', 'TYPE', 'CREATION TIME', 'MESSAGE'],
+            ...incidents.map((incident) => [incident.key, incident.processInstanceKey, incident.jobKey ?? '-', incident.type,
                 incident.creationTime, incident.message].map(safeCell)),
         ];
         const widths = rows.reduce((widths, row) => row.map((cell, column) => Math.max(widths[column], cell.length)),
