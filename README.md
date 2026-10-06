@@ -185,6 +185,8 @@ Each mutation calls `POST /v2/process-instances/{processInstanceKey}/migration` 
 
 Official Camunda 8.7 references: [migration REST API](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/specifications/migrate-process-instance/), [Operate API and pagination](https://docs.camunda.io/docs/8.7/apis-tools/operate-api/overview/), [Operate authentication](https://docs.camunda.io/docs/8.7/apis-tools/operate-api/operate-api-authentication/), and [Camunda REST authentication](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/camunda-api-rest-authentication/).
 
+When Camunda returns a recognized HTTP 400 missing-element rejection, the CLI identifies the reported source or target element, process ID, and selected deployment versions from your plan. Check every element ID against its corresponding version: Camunda reports only the first invalid mapping, including mappings for inactive elements. The CLI matches the known Camunda 8.7 rejection wording exactly; unknown or malformed responses retain the generic safe failure message. It never prints raw server error bodies.
+
 ## Open incidents (Camunda 8.7)
 
 Select a stored profile explicitly to list open incidents:

@@ -1,4 +1,5 @@
 import { Profile } from './profile';
+import { safeDeploymentPath } from './deployment';
 
 export interface MigrationPlanEntry {
     processDefinition: string;
@@ -13,6 +14,33 @@ export interface MigrationConnection {
     gatewayUrl: string;
     operateUrl: string;
     oauth?: { clientId: string; clientSecret: string; oAuthUrl: string; audience?: string; operateAudience?: string };
+}
+
+/** Safe evidence from the migration boundary; contains no server text or error cause. */
+export class MissingMigrationElement extends Error {
+    readonly status = 400;
+
+    constructor(readonly side: 'source' | 'target', readonly mappingIndex: number) {
+        super('Process instance migration failed (HTTP 400).');
+        if (!['source', 'target'].includes(side) || !Number.isSafeInteger(mappingIndex) || mappingIndex < 0) {
+            throw new Error('Invalid missing migration element evidence.');
+        }
+    }
+
+    diagnostic(entry: MigrationPlanEntry): string | undefined {
+        const mapping = entry.mappingInstructions[this.mappingIndex];
+        if (!mapping) return undefined;
+        const other = this.side === 'source' ? 'target' : 'source';
+        const version = entry[`${this.side}Version`];
+        const field = `${this.side}ElementId` as const;
+        return `Invalid migrationPlan for process '${diagnosticIdentifier(entry.processDefinition)}': ${field} '${diagnosticIdentifier(mapping[field])}' does not exist in ${this.side} version ${version} (${other} version ${entry[`${other}Version`]}). Check every ${field} against version ${version}; Camunda reports only the first invalid mapping.`;
+    }
+}
+
+function diagnosticIdentifier(value: string): string {
+    const bounded = value.length > 160 ? value.slice(0, 160) + '…' : value;
+    return safeDeploymentPath(bounded.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\u061c\u200e\u200f]/g,
+        (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`));
 }
 
 export function migrationPlan(value: unknown): MigrationPlanEntry[] {

@@ -1,4 +1,4 @@
-import { migrationConnection, MigrationDefinition, migrationPlan } from '../../domain/migration';
+import { migrationConnection, MigrationDefinition, migrationPlan, MissingMigrationElement } from '../../domain/migration';
 import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '../ports/in/migrateProcessInstancesInPort';
 import { MigrationOutPort } from '../ports/out/migrationOutPort';
 import { MigrationProfileOutPort } from '../ports/out/migrationProfileOutPort';
@@ -45,8 +45,10 @@ export class MigrateProcessInstancesUseCase implements MigrateProcessInstancesIn
         for (const { entry, target, instances } of snapshots) {
             for (const instance of instances) {
                 try { await session.migrate(instance.key, target.key, entry.mappingInstructions); } catch (error) {
-                    const status = error instanceof Error ? error.message.match(/HTTP \d{3}/)?.[0] : undefined;
-                    throw new Error(`Migration failed for instance ${instance.key} after ${count} successful migrations${status ? ` (${status})` : ''}. Prior successes remain committed; the failed request outcome may be uncertain. No retry or rollback was attempted.`);
+                    const status = error instanceof MissingMigrationElement ? `HTTP ${error.status}`
+                        : error instanceof Error ? error.message.match(/HTTP \d{3}/)?.[0] : undefined;
+                    const diagnostic = error instanceof MissingMigrationElement ? error.diagnostic(entry) : undefined;
+                    throw new Error(`Migration failed for instance ${instance.key} after ${count} successful migrations${status ? ` (${status})` : ''}. ${diagnostic ? diagnostic + ' ' : ''}Prior successes remain committed; the failed request outcome may be uncertain. No retry or rollback was attempted.`);
                 }
                 count++;
                 this.presenter.showMigrated(instance.key, entry);

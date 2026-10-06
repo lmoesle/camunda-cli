@@ -1,7 +1,12 @@
 import axios, { AxiosInstance } from 'axios';
 import { isLosslessNumber, LosslessNumber, parse, stringify } from 'lossless-json';
 import { MigrationOutPort, MigrationSession } from '../../application/ports/out/migrationOutPort';
-import { MigrationConnection, MigrationDefinition, MigrationInstance } from '../../domain/migration';
+import { MigrationConnection, MigrationDefinition, MigrationInstance, MigrationPlanEntry, MissingMigrationElement } from '../../domain/migration';
+
+interface MigrationRequest {
+    instanceKey: string;
+    mappingInstructions: MigrationPlanEntry['mappingInstructions'];
+}
 
 export class AxiosMigrationAdapter implements MigrationOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
@@ -40,7 +45,7 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
             migrate: async (instanceKey, targetProcessDefinitionKey, mappingInstructions) => {
                 await this.request(`${connection.gatewayUrl}/process-instances/${decimalKey(instanceKey)}/migration`,
                     JSON.stringify({ targetProcessDefinitionKey: decimalKey(targetProcessDefinitionKey), mappingInstructions }),
-                    gatewayHeaders, 'Process instance migration', true);
+                    gatewayHeaders, 'Process instance migration', { instanceKey: decimalKey(instanceKey), mappingInstructions });
             },
         };
     }
@@ -73,7 +78,7 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
         }
     }
 
-    private async request(url: string, data: string, headers: Record<string, string>, operation: string, migration = false): Promise<unknown> {
+    private async request(url: string, data: string, headers: Record<string, string>, operation: string, migration?: MigrationRequest): Promise<unknown> {
         let text: unknown;
         try {
             const response = await this.http.post(url, data, { headers, timeout: 30000, maxRedirects: 0,
@@ -85,7 +90,13 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
             if (migration) return undefined;
             text = response.data;
         } catch (error) {
-            const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+            const response = axios.isAxiosError(error) ? error.response : undefined;
+            const status = typeof response?.status === 'number' && Number.isInteger(response.status) && response.status >= 100 && response.status <= 599
+                ? response.status : undefined;
+            if (migration && status === 400) {
+                const rejection = missingElement(response?.data, migration);
+                if (rejection) throw rejection;
+            }
             const unexpected = error instanceof Error ? error.message.match(/^.+ failed \(HTTP (\d{3})\)\.$/)?.[1] : undefined;
             throw new Error(`${operation} failed${status !== undefined || unexpected ? ` (HTTP ${status ?? unexpected})` : ''}. Check profile endpoints, credentials, permissions, and connectivity.`);
         }
@@ -94,6 +105,26 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
             return parse(text);
         } catch { throw new Error(`${operation} returned malformed JSON.`); }
     }
+}
+
+function missingElement(body: unknown, request: MigrationRequest): MissingMigrationElement | undefined {
+    // Axios uses responseType:text. Never serialize arbitrary injected objects or echo remote prose.
+    if (typeof body !== 'string' || body.length > 65536 || Buffer.byteLength(body, 'utf8') > 65536) return undefined;
+    let problem: Record<string, unknown> | undefined;
+    try { problem = record(JSON.parse(body)); } catch { return undefined; }
+    if (!problem || problem.title !== 'INVALID_ARGUMENT' || typeof problem.detail !== 'string' ||
+        (problem.status !== undefined && problem.status !== 400) ||
+        (problem.type !== undefined && typeof problem.type !== 'string') ||
+        (problem.instance !== undefined && typeof problem.instance !== 'string')) return undefined;
+    for (const [index, mapping] of request.mappingInstructions.entries()) {
+        for (const side of ['source', 'target'] as const) {
+            const id = mapping[`${side}ElementId`];
+            // Compare the complete known engine message using only local request values.
+            const expected = `Command 'MIGRATE' rejected with code 'INVALID_ARGUMENT': Expected to migrate process instance '${request.instanceKey}' but mapping instructions contain a non-existing ${side} element id '${id}'. Elements provided in mapping instructions must exist in the ${side} process definition.`;
+            if (problem.detail === expected) return new MissingMigrationElement(side, index);
+        }
+    }
+    return undefined;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
