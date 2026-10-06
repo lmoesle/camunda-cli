@@ -62,6 +62,20 @@ describe('camunda cli', () => {
 
         expect(output).toEqual(['Hello, Camunda!']);
     });
+
+    test('rejects excess greeting arguments before presenting a greeting', async () => {
+        const output = jest.fn();
+        const diagnostic = jest.fn();
+        const program = createDefaultCamundaCli({ homeDirectory: home, writeLine: output });
+        const command = program.commands.find((child) => child.name() === 'hello-world')!;
+        command.exitOverride().configureOutput({ writeErr: diagnostic });
+
+        await expect(program.parseAsync(['hello-world', 'Camunda', 'extra'], { from: 'user' }))
+            .rejects.toMatchObject({ code: 'commander.excessArguments', exitCode: 1 });
+
+        expect(diagnostic).toHaveBeenCalledWith(expect.stringContaining('Camunda, extra'));
+        expect(output).not.toHaveBeenCalled();
+    });
 });
 
 class CapturingHelloWorldPresenter implements ShowHelloWorldOutPort {

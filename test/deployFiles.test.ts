@@ -82,11 +82,16 @@ describe('deployment orchestration and profile validation', () => {
             return '1';
         }).mockImplementationOnce(async () => {
             expect(state.presenter.showDeployed).toHaveBeenCalledWith('a.bpmn', '1');
-            throw new Error('Resource deployment failed (HTTP 403).');
+            throw Object.assign(new Error('Resource deployment failed (HTTP 403).'), {
+                config: { headers: { Authorization: 'dummy-secret' } },
+            });
         });
-        await expect(state.usecase.deployFiles({ profile: 'selected', path: 'models' })).rejects.toThrow(
+        const result = state.usecase.deployFiles({ profile: 'selected', path: 'models' });
+        await expect(result).rejects.toThrow(
             /b.dmn after 1 successful deployment.*remain committed.*uncertain.*HTTP 403/,
         );
+        await expect(result).rejects.not.toHaveProperty('cause');
+        await expect(result).rejects.not.toHaveProperty('config');
         expect(state.files.read).toHaveBeenCalledTimes(2);
         expect(state.deploy).toHaveBeenCalledTimes(2);
         expect(state.presenter.showSummary).not.toHaveBeenCalled();
@@ -147,7 +152,9 @@ describe('local deployment discovery and reads', () => {
         const filePath = path.join(directory, 'test.bpmn');
         await fs.writeFile(filePath, 'bytes');
         jest.spyOn(fs, 'access').mockRejectedValueOnce(Object.assign(new Error('unsafe filename\n'), { code: 'EACCES' }));
-        await expect(files.discover(filePath, false)).rejects.toThrow(/missing or unreadable/);
+        const discovery = files.discover(filePath, false);
+        await expect(discovery).rejects.toThrow(/missing or unreadable/);
+        await expect(discovery).rejects.not.toHaveProperty('cause');
         expect(await files.discover(filePath, false)).toEqual([filePath]);
         jest.spyOn(fs, 'open').mockRejectedValueOnce(new Error('unsafe details'));
         await expect(files.read(filePath)).rejects.toThrow(/missing or unreadable/);
@@ -212,10 +219,19 @@ describe('deployment HTTP session', () => {
     test.each([undefined, 401, 403, 302, 500])('sanitizes network/HTTP %j without retries', async (status) => {
         const { adapter, post } = mockHttp();
         post.mockRejectedValue(Object.assign(new Error('dummy-secret dummy-token'), { isAxiosError: true,
-            response: status ? { status, data: 'dummy-secret' } : undefined }));
-        await expect(adapter.connect(connection)).rejects.toThrow(/OAuth authentication failed/);
+            response: status ? { status, data: 'dummy-secret' } : undefined,
+            config: { data: 'dummy-secret', headers: { Authorization: 'dummy-token' } } }));
+        const authentication = adapter.connect(connection);
+        await expect(authentication).rejects.toThrow(/OAuth authentication failed/);
+        await expect(authentication).rejects.not.toHaveProperty('cause');
+        await expect(authentication).rejects.not.toHaveProperty('config');
+        await expect(authentication).rejects.not.toHaveProperty('response');
         const session = await adapter.connect({ deploymentsUrl: connection.deploymentsUrl });
-        await expect(session.deploy(resource)).rejects.toThrow(/Resource deployment failed/);
+        const deployment = session.deploy(resource);
+        await expect(deployment).rejects.toThrow(/Resource deployment failed/);
+        await expect(deployment).rejects.not.toHaveProperty('cause');
+        await expect(deployment).rejects.not.toHaveProperty('config');
+        await expect(deployment).rejects.not.toHaveProperty('response');
         await expect(session.deploy(resource)).rejects.not.toThrow(/dummy-secret|dummy-token/);
         expect(post).toHaveBeenCalledTimes(3);
         if (status) await expect(session.deploy(resource)).rejects.toThrow(`HTTP ${status}`);

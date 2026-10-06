@@ -31,6 +31,26 @@ function setup(body: unknown, status: number | undefined = 400, entry = plan, ke
 }
 
 describe('safe migration rejection diagnostics', () => {
+    test.each([JSON.stringify(problem()), 'dummy-secret'])('does not retain private Axios fields at either public error boundary (%#)', async (body) => {
+        const rejection = { isAxiosError: true, message: 'dummy-secret',
+            cause: new Error('dummy-secret'), config: { headers: { Authorization: 'dummy-token' } },
+            response: { status: 400, data: body }, data: 'dummy-secret' };
+        const post = jest.fn().mockRejectedValue(rejection);
+        const adapter = new AxiosMigrationAdapter({ post } as unknown as AxiosInstance);
+        const session = await adapter.connect({ gatewayUrl: profile.baseUrl!, operateUrl: profile.operateUrl! });
+        const adapterFailure = session.migrate(key, '11', plan.mappingInstructions);
+        const state = setup(body);
+        state.migrate.mockRejectedValue(rejection);
+        const publicFailure = state.run();
+        for (const failure of [adapterFailure, publicFailure]) {
+            await expect(failure).rejects.toThrow(/HTTP 400/);
+            await expect(failure).rejects.not.toThrow(/dummy-secret|dummy-token/);
+            for (const field of ['cause', 'config', 'response', 'data']) {
+                await expect(failure).rejects.not.toHaveProperty(field);
+            }
+        }
+    });
+
     test.each([
         { side: 'source', detail: sourceDetail, id: 'gateway_mailDispatch', version: 9, other: 'target version 11' },
         { side: 'target', detail: targetDetail, id: 'gateway_newDispatch', version: 11, other: 'source version 9' },
@@ -118,6 +138,8 @@ describe('safe migration rejection diagnostics', () => {
     test('external adapters can supply safe typed evidence without their arbitrary error message leaking', async () => {
         const rejection = new MissingMigrationElement('target', 1);
         rejection.message = 'dummy-secret';
+        Object.assign(rejection, { cause: new Error('dummy-secret'), config: { token: 'dummy-secret' },
+            response: { data: 'dummy-secret' }, data: 'dummy-secret' });
         const usecase = new MigrateProcessInstancesUseCase({ getProfile: () => profile }, { connect: async () => ({
             searchDefinitions: async (id, version) => [{ key: String(version), version, bpmnProcessId: id }],
             searchActiveInstances: async () => [{ key, processDefinitionKey: '9', state: 'ACTIVE' }],
@@ -126,6 +148,9 @@ describe('safe migration rejection diagnostics', () => {
         const failure = usecase.migrateProcessInstances({ profile: 'dummy', migrationPlan: [plan] });
         await expect(failure).rejects.toThrow("targetElementId 'other_target' does not exist in target version 11");
         await expect(failure).rejects.not.toThrow('dummy-secret');
+        for (const field of ['cause', 'config', 'response', 'data']) {
+            await expect(failure).rejects.not.toHaveProperty(field);
+        }
         expect(() => new MissingMigrationElement('source', -1)).toThrow('Invalid missing migration element evidence');
         expect(new MissingMigrationElement('source', 99).diagnostic(plan)).toBeUndefined();
     });

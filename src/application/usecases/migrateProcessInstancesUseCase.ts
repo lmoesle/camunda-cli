@@ -48,6 +48,7 @@ export class MigrateProcessInstancesUseCase implements MigrateProcessInstancesIn
                     const status = error instanceof MissingMigrationElement ? `HTTP ${error.status}`
                         : error instanceof Error ? error.message.match(/HTTP \d{3}/)?.[0] : undefined;
                     const diagnostic = error instanceof MissingMigrationElement ? error.diagnostic(entry) : undefined;
+                    // eslint-disable-next-line preserve-caught-error -- Untrusted adapter causes can expose credentials despite the safe public diagnostic.
                     throw new Error(`Migration failed for instance ${instance.key} after ${count} successful migrations${status ? ` (${status})` : ''}. ${diagnostic ? diagnostic + ' ' : ''}Prior successes remain committed; the failed request outcome may be uncertain. No retry or rollback was attempted.`);
                 }
                 count++;

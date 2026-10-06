@@ -29,6 +29,7 @@ export class DeployFilesUseCase implements DeployFilesInPort {
                 key = await session.deploy(await this.files.read(filePath));
             } catch (error) {
                 const reason = error instanceof Error ? error.message : 'Deployment failed.';
+                // eslint-disable-next-line preserve-caught-error -- Do not reattach adapter request configs or payloads to the public deployment error.
                 throw new Error(`Failed to deploy ${safeDeploymentPath(filePath)} after ${count} successful deployment(s). ` +
                     `Prior successes remain committed; the failed request outcome may be uncertain. ${reason}`);
             }

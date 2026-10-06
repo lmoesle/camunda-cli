@@ -98,6 +98,7 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
                 if (rejection) throw rejection;
             }
             const unexpected = error instanceof Error ? error.message.match(/^.+ failed \(HTTP (\d{3})\)\.$/)?.[1] : undefined;
+            // eslint-disable-next-line preserve-caught-error -- Axios causes expose credentials, request configs, and response data.
             throw new Error(`${operation} failed${status !== undefined || unexpected ? ` (HTTP ${status ?? unexpected})` : ''}. Check profile endpoints, credentials, permissions, and connectivity.`);
         }
         try {

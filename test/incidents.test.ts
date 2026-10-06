@@ -192,6 +192,10 @@ describe('Operate HTTP adapter', () => {
             } catch (error) {
                 expect((error as Error).message).toMatch(/failed.*Check profile/);
                 expect((error as Error).message).not.toMatch(/dummy-secret|dummy-token|password|credential:/);
+                expect(error).not.toHaveProperty('cause');
+                expect(error).not.toHaveProperty('config');
+                expect(error).not.toHaveProperty('response');
+                expect(error).not.toHaveProperty('data');
                 if (status) expect((error as Error).message).toContain(`HTTP ${status}`);
             }
             expect(output).not.toHaveBeenCalled();
