@@ -112,6 +112,7 @@ npx @lmoesle/camunda-cli add profile --name remote --base-url https://camunda.ex
 | `--client-id` | `clientId` |
 | `--client-secret` | `clientSecret` |
 | `--audience` | `audience` |
+| `--operate-audience` | `operateAudience` |
 | `--oauth-url` | `oAuthUrl` |
 | `--operate-url` | `operateUrl` |
 | `--zeebe-url` | `zeebeUrl` |
@@ -150,6 +151,40 @@ const local = cli.profiles.getProfile('local');
 
 Download commands still use their existing bearer-token configuration; stored profiles do not change download behavior. Library consumers can inject `homeDirectory` into `createDefaultCamundaCli` or `JsonProfileRepositoryAdapter` for isolated storage, and provide `addProfileInPort` to `createCamundaCli` to handle the add command.
 
+## Migrate process instances (Camunda 8.7)
+
+Run a JSON array of migration plans against a stored profile:
+
+```sh
+camunda-cli migrate --profile local --migrationPlan '[{"processDefinition":"processDefinitionId","sourceVersion":"v1","targetVersion":"v2","mappingInstructions":[{"sourceElementId":"Task_Old","targetElementId":"Task_New"}]}]'
+```
+
+- `processDefinition` is the exact BPMN process ID, not a definition key. The CLI preserves identifiers unchanged.
+- Versions are numeric **deployment versions**, not version tags. Use `1`, `"1"`, or `"v1"`; leading zeros are allowed. Versions must be integers from 1 through 2147483647, and normalized source and target versions must differ.
+- Supply a nonempty plan array. Unknown fields, duplicate `(processDefinition, sourceVersion)` selectors, blank element IDs, and duplicate source element mappings are invalid. Multiple sources may map to one target. Empty `mappingInstructions: []` is allowed; the engine decides whether the migration is suitable.
+- The CLI validates the entire plan before connecting. It resolves exactly one source and target definition by BPMN process ID and deployment version across all visible tenants. Missing or ambiguous definitions fail. Source and target must have different keys and identical tenants. Two omitted tenant IDs match; an omitted tenant does not match an explicit `<default>` tenant.
+- The CLI selects all `ACTIVE` instances of the exact source definition key, including instances with incidents. Discovery uses stable Operate `POST /v1/process-definitions/search` and `POST /v1/process-instances/search`, not the alpha v2 search API. It paginates until an empty page and preserves int64 keys without rounding.
+- Configure `baseUrl` for the gateway and `operateUrl` for Operate on **the same cluster**. Both are required; there is no `zeebeUrl` or environment fallback. Use HTTP(S) URLs without userinfo, query, or fragment. Cluster/proxy path prefixes remain intact; trailing slashes and a final `/v1` or `/v2` are normalized.
+
+For SaaS, configure both API-client permissions (Camunda REST API and Operate API), both audiences, and shared OAuth credentials. For example, with dummy credentials:
+
+```sh
+camunda-cli add profile --name saas \
+  --base-url https://bru-1.zeebe.camunda.io/your-cluster-id \
+  --operate-url https://bru-1.operate.camunda.io/your-cluster-id \
+  --oauth-url https://login.cloud.camunda.io/oauth/token \
+  --client-id dummy-client --client-secret dummy-secret \
+  --audience zeebe.camunda.io --operate-audience operate.camunda.io
+```
+
+Known SaaS endpoints require explicit nonblank `audience` (gateway) and `operateAudience` (Operate). For Self-Managed OAuth, supply nonblank `clientId`, `clientSecret`, and `oAuthUrl`. Audiences are optional; Operate uses `operateAudience` when supplied, otherwise `audience`. A supplied blank audience is invalid. The CLI obtains separate service-scoped tokens and preserves credential/audience bytes in form encoding. For Self-Managed no-auth mode, omit **all** OAuth fields, including both audiences. Partial OAuth configuration fails before any HTTP request. Cookies, Basic authentication, and provider-specific scopes are unsupported; not every custom identity provider works with this client-credentials flow.
+
+The CLI collects discovery-time snapshots for **all** entries before any mutation, rejects duplicate instance candidates across the batch, then migrates sequentially in plan order and ascending instance-key order. For a chain `v1 -> v2`, `v2 -> v3`, the second entry uses its pre-mutation v2 snapshot; it does not pick up instances newly migrated by the first entry. Operate is eventually consistent: discovery is not a transaction, and instances may change between discovery and mutation.
+
+Each mutation calls `POST /v2/process-instances/{processInstanceKey}/migration` with only `targetProcessDefinitionKey` (a decimal string) and `mappingInstructions`. HTTP 204 is success. The CLI prints each success and a final count, including zero when no candidates exist. On the first failure it stops, identifies the instance and prior-success count, and prints no success summary. Prior successes remain committed; the failed request outcome may be uncertain. The CLI does not roll back, redirect, or retry requests. Requests time out after 30 seconds; invocation-local tokens are not refreshed, so token expiry can interrupt a long batch.
+
+Official Camunda 8.7 references: [migration REST API](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/specifications/migrate-process-instance/), [Operate API and pagination](https://docs.camunda.io/docs/8.7/apis-tools/operate-api/overview/), [Operate authentication](https://docs.camunda.io/docs/8.7/apis-tools/operate-api/operate-api-authentication/), and [Camunda REST authentication](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/camunda-api-rest-authentication/).
+
 ## Open incidents (Camunda 8.7)
 
 Select a stored profile explicitly to list open incidents:
@@ -161,7 +196,7 @@ npx @lmoesle/camunda-cli incidents --profile remote --json
 
 The command requires nonblank `operateUrl`, `oAuthUrl`, `clientId`, and `clientSecret` in the selected profile. Both URLs must use HTTP(S) without embedded credentials, query parameters, or fragments. Set `operateUrl` to the service root (including the SaaS cluster ID or reverse-proxy path), or to that root followed by `/v1`. The CLI preserves path segments and ignores trailing slashes. It does not fall back to `baseUrl`, `zeebeUrl`, environment variables, or default endpoints.
 
-Set a nonblank `audience` for SaaS profiles: the CLI requires it when the Operate hostname ends in `.operate.camunda.io` or the OAuth hostname is `login.cloud.camunda.io`. Operate SaaS uses `operate.camunda.io`; the CLI sends your configured audience unchanged. Self-Managed profiles can omit `audience`, but a supplied audience must not be blank. The command obtains a bearer token with an OAuth client-credentials form request to `oAuthUrl`, preserves secret bytes, disables redirects, and keeps the token only in memory for that invocation. Requests time out after 30 seconds; authentication or request failures abort without retries or partial output.
+Set a nonblank `operateAudience` override for Operate, or use the legacy `audience` fallback. SaaS profiles require one of these when the Operate hostname ends in `.operate.camunda.io` or the OAuth hostname is `login.cloud.camunda.io`. Operate SaaS uses `operate.camunda.io`; the CLI sends your configured audience unchanged. Self-Managed profiles can omit both fields, but a supplied override must not be blank. The command obtains a bearer token with an OAuth client-credentials form request to `oAuthUrl`, preserves secret bytes, disables redirects, and keeps the token only in memory for that invocation. Requests time out after 30 seconds; authentication or request failures abort without retries or partial output.
 
 “Open” means Operate state `ACTIVE`, excluding `RESOLVED`, `MIGRATED`, and `PENDING`. The command uses the stable [Operate v1 incident search API](https://docs.camunda.io/docs/8.7/apis-tools/operate-api/specifications/search-3/) (`POST /v1/incidents/search`), not the v2 alpha API. It lists every matching incident visible to the credentials, without process or tenant filters, and follows the complete `sortValues` cursor until an empty page, regardless of reported totals or short pages.
 

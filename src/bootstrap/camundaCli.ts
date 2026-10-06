@@ -17,6 +17,9 @@ import { DeployFilesUseCase } from '../application/usecases/deployFilesUseCase';
 import { LocalDeploymentFilesAdapter } from '../adapter/out/localDeploymentFilesAdapter';
 import { AxiosDeploymentAdapter } from '../adapter/out/axiosDeploymentAdapter';
 import { ConsoleDeploymentsPresenter } from '../adapter/out/consoleDeploymentsPresenter';
+import { MigrateProcessInstancesUseCase } from '../application/usecases/migrateProcessInstancesUseCase';
+import { AxiosMigrationAdapter } from '../adapter/out/axiosMigrationAdapter';
+import { ConsoleMigrationsPresenter } from '../adapter/out/consoleMigrationsPresenter';
 
 export interface CamundaCliBootstrapOptions {
     modelerApiBaseUrl?: string;
@@ -71,11 +74,13 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
         deployFilesInPort: new DeployFilesUseCase(cache, new LocalDeploymentFilesAdapter(), new AxiosDeploymentAdapter(),
             new ConsoleDeploymentsPresenter(writeLine)),
         version: options.version,
+        migrateProcessInstancesInPort: new MigrateProcessInstancesUseCase(cache, new AxiosMigrationAdapter(),
+            new ConsoleMigrationsPresenter(writeLine)),
     });
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        diagnosticCommand = ['incidents', 'deploy'].includes(command.name());
+        diagnosticCommand = ['incidents', 'deploy', 'migrate'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {
