@@ -60,3 +60,12 @@ export type { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } fr
 export type { MigrationOutPort, MigrationSession } from './application/ports/out/migrationOutPort';
 export type { MigrationProfileOutPort } from './application/ports/out/migrationProfileOutPort';
 export type { ShowMigrationsOutPort } from './application/ports/out/showMigrationsOutPort';
+export { RetryIncidentUseCase } from './application/usecases/retryIncidentUseCase';
+export { AxiosIncidentRetryAdapter } from './adapter/out/axiosIncidentRetryAdapter';
+export { ConsoleIncidentRetryPresenter } from './adapter/out/consoleIncidentRetryPresenter';
+export { incidentRetryKey, IncidentRetryFailure } from './domain/incidentRetry';
+export type { RestConnection } from './domain/restConnection';
+export type { RetryIncidentCommand, RetryIncidentInPort } from './application/ports/in/retryIncidentInPort';
+export type { IncidentRetryOutPort, IncidentRetrySession } from './application/ports/out/incidentRetryOutPort';
+export type { IncidentRetryProfileOutPort } from './application/ports/out/incidentRetryProfileOutPort';
+export type { ShowIncidentRetryOutPort } from './application/ports/out/showIncidentRetryOutPort';

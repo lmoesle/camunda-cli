@@ -20,6 +20,9 @@ import { ConsoleDeploymentsPresenter } from '../adapter/out/consoleDeploymentsPr
 import { MigrateProcessInstancesUseCase } from '../application/usecases/migrateProcessInstancesUseCase';
 import { AxiosMigrationAdapter } from '../adapter/out/axiosMigrationAdapter';
 import { ConsoleMigrationsPresenter } from '../adapter/out/consoleMigrationsPresenter';
+import { RetryIncidentUseCase } from '../application/usecases/retryIncidentUseCase';
+import { AxiosIncidentRetryAdapter } from '../adapter/out/axiosIncidentRetryAdapter';
+import { ConsoleIncidentRetryPresenter } from '../adapter/out/consoleIncidentRetryPresenter';
 
 export interface CamundaCliBootstrapOptions {
     modelerApiBaseUrl?: string;
@@ -73,6 +76,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
         listIncidentsInPort: new ListIncidentsUseCase(cache, new AxiosIncidentAdapter(), new ConsoleIncidentsPresenter(writeLine)),
         deployFilesInPort: new DeployFilesUseCase(cache, new LocalDeploymentFilesAdapter(), new AxiosDeploymentAdapter(),
             new ConsoleDeploymentsPresenter(writeLine)),
+        retryIncidentInPort: new RetryIncidentUseCase(cache, new AxiosIncidentRetryAdapter(), new ConsoleIncidentRetryPresenter(writeLine)),
         version: options.version,
         migrateProcessInstancesInPort: new MigrateProcessInstancesUseCase(cache, new AxiosMigrationAdapter(),
             new ConsoleMigrationsPresenter(writeLine)),
@@ -80,7 +84,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        diagnosticCommand = ['incidents', 'deploy', 'migrate'].includes(command.name());
+        if (_parent === program) diagnosticCommand = ['incidents', 'incident', 'deploy', 'migrate'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {

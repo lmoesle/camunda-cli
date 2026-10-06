@@ -5,6 +5,7 @@ import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/
 import { ListIncidentsCommand, ListIncidentsInPort } from '../../application/ports/in/listIncidentsInPort';
 import { DeployFilesCommand, DeployFilesInPort } from '../../application/ports/in/deployFilesInPort';
 import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '../../application/ports/in/migrateProcessInstancesInPort';
+import { RetryIncidentCommand, RetryIncidentInPort } from '../../application/ports/in/retryIncidentInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -19,6 +20,7 @@ export interface CamundaCliDependencies {
     listIncidentsInPort?: ListIncidentsInPort;
     deployFilesInPort?: DeployFilesInPort;
     migrateProcessInstancesInPort?: MigrateProcessInstancesInPort;
+    retryIncidentInPort?: RetryIncidentInPort;
     version?: string;
 }
 
@@ -47,6 +49,18 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .action(async (path: string, options: Omit<DeployFilesCommand, 'path'>) => {
             if (!dependencies.deployFilesInPort) throw new Error('The deploy command requires a DeployFilesInPort dependency.');
             await dependencies.deployFilesInPort.deployFiles({ ...options, path });
+        });
+
+    program.command('incident')
+        .description('Manage Camunda 8.7 incidents')
+        .command('retry')
+        .description('Set job retries to 3, then request incident resolution')
+        .requiredOption('--incident <incidentKey>', 'incident key (required)')
+        .requiredOption('--job <jobKey>', 'failed job key (required)')
+        .requiredOption('--profile <name>', 'stored profile name (required)')
+        .action(async (options: RetryIncidentCommand) => {
+            if (!dependencies.retryIncidentInPort) throw new Error('The incident retry command requires a RetryIncidentInPort dependency.');
+            await dependencies.retryIncidentInPort.retryIncident(options);
         });
 
     program.command('incidents')
