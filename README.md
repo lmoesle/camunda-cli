@@ -159,6 +159,16 @@ Run a JSON array of migration plans against a stored profile:
 camunda-cli migrate --profile local --migrationPlan '[{"processDefinition":"processDefinitionId","sourceVersion":"v1","targetVersion":"v2","mappingInstructions":[{"sourceElementId":"Task_Old","targetElementId":"Task_New"}]}]'
 ```
 
+For larger plans, pass a JSON file instead:
+
+```sh
+camunda-cli migrate --profile local --migrationPlan ./migration-plan.json
+```
+
+Store exactly the same nonempty JSON array in the UTF-8 file, with no wrapper object. Pretty-printing and trailing newlines are supported. Use an absolute path or a path relative to the current working directory; quote paths containing spaces. The CLI reads only regular non-symlink files and validates the entire file before connecting.
+
+Valid JSON input always follows plan validation, even if its shape is invalid. Blank input and malformed input starting with `[` or `{` produce JSON diagnostics; other non-JSON input is a file path. Use `./` or an absolute path for filenames that resemble JSON. File contents never refer to another file.
+
 - `processDefinition` is the exact BPMN process ID, not a definition key. The CLI preserves identifiers unchanged.
 - Versions are numeric **deployment versions**, not version tags. Use `1`, `"1"`, or `"v1"`; leading zeros are allowed. Versions must be integers from 1 through 2147483647, and normalized source and target versions must differ.
 - Supply a nonempty plan array. Unknown fields, duplicate `(processDefinition, sourceVersion)` selectors, blank element IDs, and duplicate source element mappings are invalid. Multiple sources may map to one target. Empty `mappingInstructions: []` is allowed; the engine decides whether the migration is suitable.

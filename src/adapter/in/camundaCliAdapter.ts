@@ -35,7 +35,7 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
     program.command('migrate')
         .description('Migrate ACTIVE process instances using Camunda 8.7 deployment versions')
         .requiredOption('--profile <name>', 'stored profile name (required)')
-        .requiredOption('--migrationPlan <json>', 'JSON array of migration plan entries (required)')
+        .requiredOption('--migrationPlan <json-or-path>', 'JSON array of migration plan entries or path to a JSON file (required)')
         .action(async (options: MigrateProcessInstancesCommand) => {
             if (!dependencies.migrateProcessInstancesInPort) throw new Error('The migrate command requires a MigrateProcessInstancesInPort dependency.');
             await dependencies.migrateProcessInstancesInPort.migrateProcessInstances(options);
