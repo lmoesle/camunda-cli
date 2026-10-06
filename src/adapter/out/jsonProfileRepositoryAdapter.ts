@@ -123,6 +123,7 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, L
             if (error instanceof ProfileStorageError) {
                 throw error;
             }
+            // eslint-disable-next-line preserve-caught-error -- Storage causes can expose private paths or persisted credentials.
             throw new Error('Unable to access profile storage. Check permissions and available disk space.');
         }
     }

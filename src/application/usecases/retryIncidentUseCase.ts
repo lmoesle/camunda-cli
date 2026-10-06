@@ -26,6 +26,7 @@ export class RetryIncidentUseCase implements RetryIncidentInPort {
             await session.resolveIncident(incidentKey);
         } catch (error) {
             const reason = error instanceof IncidentRetryFailure ? error.message : 'Incident resolution failed.';
+            // eslint-disable-next-line preserve-caught-error -- Untrusted adapter causes can expose credentials despite the safe public message.
             throw new Error(`${reason} Job retries have already been updated; no rollback was attempted. ` +
                 'The failed request outcome may be uncertain. Check state before rerunning.');
         }

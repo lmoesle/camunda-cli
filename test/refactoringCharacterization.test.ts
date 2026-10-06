@@ -58,7 +58,9 @@ describe('persisted profile validation and safe reading', () => {
         if (code === 'ENOENT') {
             await expect(repository.loadProfiles()).resolves.toBeUndefined();
         } else {
-            await expect(repository.loadProfiles()).rejects.toThrow('Unable to access profile storage.');
+            const result = repository.loadProfiles();
+            await expect(result).rejects.toThrow('Unable to access profile storage.');
+            await expect(result).rejects.not.toHaveProperty('cause');
         }
     });
 
