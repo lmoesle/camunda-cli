@@ -54,6 +54,8 @@ function incidentConnection(profile: Profile): IncidentConnection {
     const clientSecret = required(profile.clientSecret, 'clientSecret');
     const saas = new URL(operateUrl).hostname.endsWith('.operate.camunda.io') ||
         new URL(oAuthUrl).hostname === 'login.cloud.camunda.io';
-    const audience = profile.audience !== undefined || saas ? required(profile.audience, 'audience') : undefined;
+    const audience = Object.prototype.hasOwnProperty.call(profile, 'operateAudience')
+        ? required(profile.operateAudience, 'operateAudience')
+        : profile.audience !== undefined || saas ? required(profile.audience, 'audience') : undefined;
     return { operateUrl, oAuthUrl, clientId, clientSecret, audience };
 }

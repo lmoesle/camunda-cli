@@ -51,6 +51,15 @@ export type { DeploymentOutPort, DeploymentSession } from './application/ports/o
 export type { DeploymentProfileOutPort } from './application/ports/out/deploymentProfileOutPort';
 export type { ShowDeploymentsOutPort } from './application/ports/out/showDeploymentsOutPort';
 export type { DeploymentConnection, DeploymentResource } from './domain/deployment';
+export { MigrateProcessInstancesUseCase } from './application/usecases/migrateProcessInstancesUseCase';
+export { AxiosMigrationAdapter } from './adapter/out/axiosMigrationAdapter';
+export { ConsoleMigrationsPresenter } from './adapter/out/consoleMigrationsPresenter';
+export { migrationPlan, migrationConnection, MissingMigrationElement } from './domain/migration';
+export type { MigrationPlanEntry, MigrationConnection, MigrationDefinition, MigrationInstance } from './domain/migration';
+export type { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from './application/ports/in/migrateProcessInstancesInPort';
+export type { MigrationOutPort, MigrationSession } from './application/ports/out/migrationOutPort';
+export type { MigrationProfileOutPort } from './application/ports/out/migrationProfileOutPort';
+export type { ShowMigrationsOutPort } from './application/ports/out/showMigrationsOutPort';
 export { RetryIncidentUseCase } from './application/usecases/retryIncidentUseCase';
 export { AxiosIncidentRetryAdapter } from './adapter/out/axiosIncidentRetryAdapter';
 export { ConsoleIncidentRetryPresenter } from './adapter/out/consoleIncidentRetryPresenter';

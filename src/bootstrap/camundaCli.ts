@@ -17,6 +17,9 @@ import { DeployFilesUseCase } from '../application/usecases/deployFilesUseCase';
 import { LocalDeploymentFilesAdapter } from '../adapter/out/localDeploymentFilesAdapter';
 import { AxiosDeploymentAdapter } from '../adapter/out/axiosDeploymentAdapter';
 import { ConsoleDeploymentsPresenter } from '../adapter/out/consoleDeploymentsPresenter';
+import { MigrateProcessInstancesUseCase } from '../application/usecases/migrateProcessInstancesUseCase';
+import { AxiosMigrationAdapter } from '../adapter/out/axiosMigrationAdapter';
+import { ConsoleMigrationsPresenter } from '../adapter/out/consoleMigrationsPresenter';
 import { RetryIncidentUseCase } from '../application/usecases/retryIncidentUseCase';
 import { AxiosIncidentRetryAdapter } from '../adapter/out/axiosIncidentRetryAdapter';
 import { ConsoleIncidentRetryPresenter } from '../adapter/out/consoleIncidentRetryPresenter';
@@ -75,11 +78,13 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
             new ConsoleDeploymentsPresenter(writeLine)),
         retryIncidentInPort: new RetryIncidentUseCase(cache, new AxiosIncidentRetryAdapter(), new ConsoleIncidentRetryPresenter(writeLine)),
         version: options.version,
+        migrateProcessInstancesInPort: new MigrateProcessInstancesUseCase(cache, new AxiosMigrationAdapter(),
+            new ConsoleMigrationsPresenter(writeLine)),
     });
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        if (_parent === program) diagnosticCommand = ['incidents', 'incident', 'deploy'].includes(command.name());
+        if (_parent === program) diagnosticCommand = ['incidents', 'incident', 'deploy', 'migrate'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {

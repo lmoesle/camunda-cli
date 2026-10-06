@@ -10,7 +10,7 @@ import {
 
 const fullProfile: Profile = {
     name: 'remote', baseUrl: 'xxx', clientId: 'client', clientSecret: ' dummy secret ',
-    audience: 'audience', oAuthUrl: 'oauth', operateUrl: 'operate', zeebeUrl: 'zeebe',
+    audience: 'audience', operateAudience: ' operate audience ', oAuthUrl: 'oauth', operateUrl: 'operate', zeebeUrl: 'zeebe',
 };
 
 describe('add profile use case', () => {
@@ -76,6 +76,7 @@ describe('profile JSON storage and default CLI', () => {
             'add', 'profile', '--name', 'remote', '--base-url', 'xxx',
             '--client-id', 'client', '--client-secret', ' dummy secret ', '--audience', 'audience',
             '--oauth-url', 'oauth', '--operate-url', 'operate', '--zeebe-url', 'zeebe',
+            '--operate-audience', ' operate audience ',
         ], { from: 'user' });
         expect(await repository.listProfiles()).toEqual([fullProfile]);
         expect(writeLine.mock.calls).toEqual([['Please add a profile with the add profile command.']]);

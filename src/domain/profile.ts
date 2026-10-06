@@ -4,12 +4,13 @@ export interface Profile {
     clientId?: string;
     clientSecret?: string;
     audience?: string;
+    operateAudience?: string;
     oAuthUrl?: string;
     operateUrl?: string;
     zeebeUrl?: string;
 }
 
-export const optionalProfileFields = ['clientId', 'clientSecret', 'audience', 'oAuthUrl', 'operateUrl', 'zeebeUrl'] as const;
+export const optionalProfileFields = ['clientId', 'clientSecret', 'audience', 'operateAudience', 'oAuthUrl', 'operateUrl', 'zeebeUrl'] as const;
 
 export function createProfile(input: Profile): Profile {
     requireNonblankString(input.name, 'name');

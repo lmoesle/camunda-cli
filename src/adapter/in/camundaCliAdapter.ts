@@ -4,6 +4,7 @@ import { SayHelloWorldInPort } from '../../application/ports/in/helloWorldInPort
 import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/addProfileInPort';
 import { ListIncidentsCommand, ListIncidentsInPort } from '../../application/ports/in/listIncidentsInPort';
 import { DeployFilesCommand, DeployFilesInPort } from '../../application/ports/in/deployFilesInPort';
+import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '../../application/ports/in/migrateProcessInstancesInPort';
 import { RetryIncidentCommand, RetryIncidentInPort } from '../../application/ports/in/retryIncidentInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
@@ -18,6 +19,7 @@ export interface CamundaCliDependencies {
     addProfileInPort?: AddProfileInPort;
     listIncidentsInPort?: ListIncidentsInPort;
     deployFilesInPort?: DeployFilesInPort;
+    migrateProcessInstancesInPort?: MigrateProcessInstancesInPort;
     retryIncidentInPort?: RetryIncidentInPort;
     version?: string;
 }
@@ -29,6 +31,15 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .name('camunda-cli')
         .description('CLI for interacting with Camunda 8')
         .version(dependencies.version ?? cliVersion);
+
+    program.command('migrate')
+        .description('Migrate ACTIVE process instances using Camunda 8.7 deployment versions')
+        .requiredOption('--profile <name>', 'stored profile name (required)')
+        .requiredOption('--migrationPlan <json>', 'JSON array of migration plan entries (required)')
+        .action(async (options: MigrateProcessInstancesCommand) => {
+            if (!dependencies.migrateProcessInstancesInPort) throw new Error('The migrate command requires a MigrateProcessInstancesInPort dependency.');
+            await dependencies.migrateProcessInstancesInPort.migrateProcessInstances(options);
+        });
 
     program.command('deploy')
         .description('Deploy each .bpmn, .dmn, or .form file independently to Camunda 8.7')
@@ -72,6 +83,7 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .option('--client-id <id>', 'OAuth client ID')
         .option('--client-secret <secret>', 'OAuth client secret (stored in cleartext)')
         .option('--audience <audience>', 'OAuth audience')
+        .option('--operate-audience <audience>', 'Operate OAuth audience override')
         .option('--oauth-url <url>', 'OAuth URL')
         .option('--operate-url <url>', 'Operate URL')
         .option('--zeebe-url <url>', 'Zeebe URL')

@@ -12,7 +12,7 @@ const notice = 'Please add a profile with the add profile command.';
 const profiles = [
     {
         name: ' remote ', baseUrl: ' base ', clientId: 'client', clientSecret: ' dummy-secret ',
-        audience: 'audience', oAuthUrl: 'oauth', operateUrl: 'operate', zeebeUrl: 'zeebe',
+        audience: 'audience', operateAudience: ' operate audience ', oAuthUrl: 'oauth', operateUrl: 'operate', zeebeUrl: 'zeebe',
         future: { nested: ['original'] },
     },
     { name: 'Remote', baseUrl: 'other' },
