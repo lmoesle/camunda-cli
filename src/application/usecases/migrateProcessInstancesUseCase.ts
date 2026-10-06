@@ -2,14 +2,17 @@ import { migrationConnection, MigrationDefinition, migrationPlan, MissingMigrati
 import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '../ports/in/migrateProcessInstancesInPort';
 import { MigrationOutPort } from '../ports/out/migrationOutPort';
 import { MigrationProfileOutPort } from '../ports/out/migrationProfileOutPort';
+import { MigrationPlanFileOutPort } from '../ports/out/migrationPlanFileOutPort';
 import { ShowMigrationsOutPort } from '../ports/out/showMigrationsOutPort';
 
 export class MigrateProcessInstancesUseCase implements MigrateProcessInstancesInPort {
     constructor(private readonly profiles: MigrationProfileOutPort, private readonly migration: MigrationOutPort,
-        private readonly presenter: ShowMigrationsOutPort) {}
+        private readonly presenter: ShowMigrationsOutPort, private readonly planFiles?: MigrationPlanFileOutPort) {}
 
     async migrateProcessInstances(command: MigrateProcessInstancesCommand): Promise<void> {
-        const plan = migrationPlan(command.migrationPlan);
+        const input = command.migrationPlan;
+        const plan = migrationPlan(this.planFiles && typeof input === 'string' && !isInlineJson(input)
+            ? await this.planFiles.read(input) : input);
         if (typeof command.profile !== 'string' || !command.profile.trim()) throw new Error('Migrate requires a nonblank profile name.');
         const profile = this.profiles.getProfile(command.profile.trim());
         if (!profile) throw new Error('The selected profile does not exist. Add it with the add profile command.');
@@ -57,4 +60,11 @@ export class MigrateProcessInstancesUseCase implements MigrateProcessInstancesIn
         }
         this.presenter.showSummary(count);
     }
+}
+
+function isInlineJson(input: string): boolean {
+    // Keep malformed array/object input and blanks on the domain's JSON diagnostic path.
+    const trimmed = input.trim();
+    if (!trimmed || trimmed.startsWith('[') || trimmed.startsWith('{')) return true;
+    try { JSON.parse(input); return true; } catch { return false; }
 }

@@ -54,6 +54,8 @@ export type { DeploymentConnection, DeploymentResource } from './domain/deployme
 export { MigrateProcessInstancesUseCase } from './application/usecases/migrateProcessInstancesUseCase';
 export { AxiosMigrationAdapter } from './adapter/out/axiosMigrationAdapter';
 export { ConsoleMigrationsPresenter } from './adapter/out/consoleMigrationsPresenter';
+export { LocalMigrationPlanFileAdapter } from './adapter/out/localMigrationPlanFileAdapter';
+export type { MigrationPlanFileOutPort } from './application/ports/out/migrationPlanFileOutPort';
 export { migrationPlan, migrationConnection, MissingMigrationElement } from './domain/migration';
 export type { MigrationPlanEntry, MigrationConnection, MigrationDefinition, MigrationInstance } from './domain/migration';
 export type { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from './application/ports/in/migrateProcessInstancesInPort';

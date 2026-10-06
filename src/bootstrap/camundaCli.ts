@@ -20,6 +20,7 @@ import { ConsoleDeploymentsPresenter } from '../adapter/out/consoleDeploymentsPr
 import { MigrateProcessInstancesUseCase } from '../application/usecases/migrateProcessInstancesUseCase';
 import { AxiosMigrationAdapter } from '../adapter/out/axiosMigrationAdapter';
 import { ConsoleMigrationsPresenter } from '../adapter/out/consoleMigrationsPresenter';
+import { LocalMigrationPlanFileAdapter } from '../adapter/out/localMigrationPlanFileAdapter';
 import { RetryIncidentUseCase } from '../application/usecases/retryIncidentUseCase';
 import { AxiosIncidentRetryAdapter } from '../adapter/out/axiosIncidentRetryAdapter';
 import { ConsoleIncidentRetryPresenter } from '../adapter/out/consoleIncidentRetryPresenter';
@@ -79,7 +80,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
         retryIncidentInPort: new RetryIncidentUseCase(cache, new AxiosIncidentRetryAdapter(), new ConsoleIncidentRetryPresenter(writeLine)),
         version: options.version,
         migrateProcessInstancesInPort: new MigrateProcessInstancesUseCase(cache, new AxiosMigrationAdapter(),
-            new ConsoleMigrationsPresenter(writeLine)),
+            new ConsoleMigrationsPresenter(writeLine), new LocalMigrationPlanFileAdapter()),
     });
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
