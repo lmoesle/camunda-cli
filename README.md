@@ -165,7 +165,23 @@ Set a nonblank `audience` for SaaS profiles: the CLI requires it when the Operat
 
 “Open” means Operate state `ACTIVE`, excluding `RESOLVED`, `MIGRATED`, and `PENDING`. The command uses the stable [Operate v1 incident search API](https://docs.camunda.io/docs/8.7/apis-tools/operate-api/specifications/search-3/) (`POST /v1/incidents/search`), not the v2 alpha API. It lists every matching incident visible to the credentials, without process or tenant filters, and follows the complete `sortValues` cursor until an empty page, regardless of reported totals or short pages.
 
-The default table shows incident key, process-instance key, type, creation time, and the full message. It escapes terminal controls and newlines visibly. `--json` prints one JSON array (`[]` when empty), preserves original messages, and represents int64 key fields as exact decimal strings. The CLI sends startup notices for incidents to stderr and writes no successful output until every page succeeds. Library consumers can inject `writeDiagnostic` separately from `writeLine`, or supply `listIncidentsInPort` to `createCamundaCli`.
+The default table shows incident key, process-instance key, job key (`-` when absent), type, creation time, and the full message. It escapes terminal controls and newlines visibly. `--json` prints one JSON array (`[]` when empty), preserves original messages, and represents int64 key fields as exact decimal strings. JSON omits `jobKey` for non-job incidents. The CLI sends startup notices for incidents to stderr and writes no successful output until every page succeeds. Library consumers can inject `writeDiagnostic` separately from `writeLine`, or supply `listIncidentsInPort` to `createCamundaCli`.
+
+### Retry a job incident
+
+Fix the underlying cause, then use the incident and job keys from the listing:
+
+```bash
+npx @lmoesle/camunda-cli incident retry --incident 9007199254740993 --job 9007199254740999 --profile remote
+```
+
+All three options are required. Keys must be positive base-10 signed-int64 identifiers (1–9223372036854775807); the CLI trims surrounding whitespace and normalizes leading zeros without losing precision. This command supports job incidents only. Supply the job belonging to the incident; the CLI does not look up or verify that relationship.
+
+Set the profile's `baseUrl` to the HTTP(S) REST gateway root, including any cluster or reverse-proxy prefix, optionally ending in `/v2`. Trailing slashes are ignored. URLs must not contain credentials, query parameters, or fragments. Retry does not use `operateUrl`, `zeebeUrl`, or environment fallbacks. For OAuth, configure nonblank `oAuthUrl`, `clientId`, and `clientSecret`; a supplied `audience` must be nonblank. SaaS (`*.zeebe.camunda.io` or OAuth at `login.cloud.camunda.io`) requires an audience, typically `zeebe.camunda.io`. Credentials and audience are sent unchanged. For an explicitly unauthenticated gateway, omit **all** OAuth properties; partial or blank configuration fails before requests. Operate listing and gateway retry may require separate profiles because their OAuth audiences differ.
+
+The CLI first [updates the job](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/specifications/update-a-job/) with `PATCH /v2/jobs/<jobKey>` and `{"changeset":{"retries":3}}`. Only after success does it [resolve the incident](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/specifications/resolve-incident/) with a bodyless `POST /v2/incidents/<incidentKey>/resolution`. Both endpoints accept the operation with an empty `204` response. The CLI authenticates once per invocation, disables redirects, and uses a 30-second timeout per request, without automatic retries or version fallback.
+
+If the job update fails, the CLI does not resolve the incident. If resolution fails, job retries remain updated: no rollback occurs, and the failed request outcome may be uncertain. Check state before rerunning. “Retry requested” appears only after both operations succeed; it does not mean a worker has executed or completed the job. Startup notices go to stderr. Library consumers can supply the optional `retryIncidentInPort` dependency to `createCamundaCli`.
 
 ## Deploy resources (Camunda 8.7)
 

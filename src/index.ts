@@ -51,3 +51,12 @@ export type { DeploymentOutPort, DeploymentSession } from './application/ports/o
 export type { DeploymentProfileOutPort } from './application/ports/out/deploymentProfileOutPort';
 export type { ShowDeploymentsOutPort } from './application/ports/out/showDeploymentsOutPort';
 export type { DeploymentConnection, DeploymentResource } from './domain/deployment';
+export { RetryIncidentUseCase } from './application/usecases/retryIncidentUseCase';
+export { AxiosIncidentRetryAdapter } from './adapter/out/axiosIncidentRetryAdapter';
+export { ConsoleIncidentRetryPresenter } from './adapter/out/consoleIncidentRetryPresenter';
+export { incidentRetryKey, IncidentRetryFailure } from './domain/incidentRetry';
+export type { RestConnection } from './domain/restConnection';
+export type { RetryIncidentCommand, RetryIncidentInPort } from './application/ports/in/retryIncidentInPort';
+export type { IncidentRetryOutPort, IncidentRetrySession } from './application/ports/out/incidentRetryOutPort';
+export type { IncidentRetryProfileOutPort } from './application/ports/out/incidentRetryProfileOutPort';
+export type { ShowIncidentRetryOutPort } from './application/ports/out/showIncidentRetryOutPort';
