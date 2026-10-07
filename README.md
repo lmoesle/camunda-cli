@@ -43,7 +43,7 @@ Creating a profile does not test connectivity or authentication.
 Profiles live in `~/.lmoesle-camunda-cli/profiles.json`. **Secrets are unencrypted**, and secret arguments can appear in shell history and process listings. Protect the file and its backups.
 
 For cluster commands, use HTTP(S) service roots including any SaaS cluster ID or reverse-proxy path prefix, without embedded credentials, query, or fragment.
-Cluster commands do not fall back to `--zeebe-url` or environment settings. Downloads use their own bearer-token settings, not profiles.
+Cluster commands do not fall back to `--zeebe-url` or environment settings.
 
 - **OAuth:** Supply all three of `--client-id`, `--client-secret`, and `--oauth-url`; partial or blank configuration fails at use. SaaS gateway commands require an audience, normally `zeebe.camunda.io`; SaaS Operate also requires an audience, normally `operate.camunda.io`.
   For a shared SaaS migration profile, set **both** `--audience` and `--operate-audience` and grant access to both APIs. Self-Managed OAuth can omit audiences; incidents and Self-Managed migration use `--audience` when no Operate override is present.

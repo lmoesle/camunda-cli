@@ -1,10 +1,5 @@
 import { Command } from 'commander';
 import { createCamundaCli } from '../adapter/in/camundaCliAdapter';
-import { AxiosModelerFileAdapter } from '../adapter/out/axiosModelerFileAdapter';
-import { ConsoleHelloWorldPresenter } from '../adapter/out/consoleHelloWorldPresenter';
-import { LocalFileAdapter } from '../adapter/out/localFileAdapter';
-import { DownloadFilesUseCase } from '../application/usecases/downloadFilesUseCase';
-import { HelloWorldUseCase } from '../application/usecases/helloWorldUseCase';
 import { AddProfileUseCase } from '../application/usecases/addProfileUseCase';
 import { JsonProfileRepositoryAdapter } from '../adapter/out/jsonProfileRepositoryAdapter';
 import { ConsoleProfileNoticePresenter } from '../adapter/out/consoleProfileNoticePresenter';
@@ -26,7 +21,6 @@ import { AxiosIncidentRetryAdapter } from '../adapter/out/axiosIncidentRetryAdap
 import { ConsoleIncidentRetryPresenter } from '../adapter/out/consoleIncidentRetryPresenter';
 
 export interface CamundaCliBootstrapOptions {
-    modelerApiBaseUrl?: string;
     writeLine?: (line: string) => void;
     writeDiagnostic?: (line: string) => void;
     version?: string;
@@ -59,20 +53,12 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
         deferred = false;
         for (const line of notices.splice(0)) emitNotice(line);
     };
-    const showHelloWorldOutPort = new ConsoleHelloWorldPresenter(writeLine);
-    const sayHelloWorldInPort = new HelloWorldUseCase(showHelloWorldOutPort);
-    const modelerFileOutPort = new AxiosModelerFileAdapter(options.modelerApiBaseUrl);
-    const writeFileOutPort = new LocalFileAdapter();
-    const downloadFilesInPort = new DownloadFilesUseCase(modelerFileOutPort, writeFileOutPort);
-
     const repository = new JsonProfileRepositoryAdapter(options.homeDirectory);
     const cache = new ProfileCache();
     const loadProfilesInPort = new LoadProfilesUseCase(repository, cache, new ConsoleProfileNoticePresenter(emitNotice));
     let initialization: Promise<void> | undefined;
     const initialize = (): Promise<void> => initialization ??= loadProfilesInPort.loadProfiles();
     const program = createCamundaCli({
-        downloadFilesInPort,
-        sayHelloWorldInPort,
         addProfileInPort: new AddProfileUseCase(repository),
         listIncidentsInPort: new ListIncidentsUseCase(cache, new AxiosIncidentAdapter(), new ConsoleIncidentsPresenter(writeLine)),
         deployFilesInPort: new DeployFilesUseCase(cache, new LocalDeploymentFilesAdapter(), new AxiosDeploymentAdapter(),

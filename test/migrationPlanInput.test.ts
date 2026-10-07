@@ -153,8 +153,7 @@ describe('migration plan JSON or file input', () => {
     test('CLI forwards a raw path unchanged and advertises both input forms', async () => {
         const migrateProcessInstances = jest.fn();
         const cli = createCamundaCli({
-            downloadFilesInPort: { downloadFiles: jest.fn(), downloadFile: jest.fn() },
-            sayHelloWorldInPort: { sayHelloWorld: jest.fn() }, migrateProcessInstancesInPort: { migrateProcessInstances },
+            migrateProcessInstancesInPort: { migrateProcessInstances },
         });
         const filename = './ migration plan 日本語.json ';
         await cli.parseAsync(['migrate', '--profile', 'selected', '--migrationPlan', filename], { from: 'user' });

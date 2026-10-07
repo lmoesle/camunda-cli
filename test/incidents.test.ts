@@ -259,9 +259,8 @@ describe('incident presentation and command', () => {
     });
 
     function command(listIncidentsInPort?: { listIncidents: jest.Mock }) {
-        const cli = createCamundaCli({ downloadFilesInPort: { downloadFiles: jest.fn(), downloadFile: jest.fn() },
-            sayHelloWorldInPort: { sayHelloWorld: jest.fn() }, listIncidentsInPort }).exitOverride()
-            .configureOutput({ writeErr: () => undefined });
+        const cli = createCamundaCli({ listIncidentsInPort }).exitOverride()
+            .configureOutput({ writeErr: () => undefined, writeOut: () => undefined });
         cli.commands.forEach((child) => child.exitOverride().configureOutput({ writeErr: () => undefined }));
         return cli;
     }
@@ -270,7 +269,7 @@ describe('incident presentation and command', () => {
         const cli = command();
         await expect(cli.parseAsync(['incidents'], { from: 'user' })).rejects.toThrow('required option');
         await expect(cli.parseAsync(['incidents', '--profile', 'selected'], { from: 'user' })).rejects.toThrow('ListIncidentsInPort');
-        await expect(command().parseAsync(['hello-world'], { from: 'user' })).resolves.toBeDefined();
+        await expect(command().parseAsync(['--help'], { from: 'user' })).rejects.toMatchObject({ exitCode: 0 });
     });
 
     test.each([false, true])('forwards explicit profile and JSON mode %s', async (json) => {
@@ -372,8 +371,11 @@ describe('default incidents runtime', () => {
         expect(output.mock.calls).toEqual([['[]']]);
         await rm(path.join(home, '.lmoesle-camunda-cli'), { recursive: true });
         output.mockClear();
-        await runDefaultCamundaCli(['node', 'cli', 'hello-world'], { homeDirectory: home, writeLine: output });
-        expect(output.mock.calls).toEqual([['Please add a profile with the add profile command.'], ['Hello, World!']]);
+        const diagnostic = jest.fn();
+        await runDefaultCamundaCli(['node', 'cli', 'add', 'profile', '--name', 'local', '--base-url', 'xxx'],
+            { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic });
+        expect(output.mock.calls).toEqual([['Please add a profile with the add profile command.']]);
+        expect(diagnostic).not.toHaveBeenCalled();
     });
 
     test('runner and direct parsing keep startup and later HTTP failures off stdout', async () => {

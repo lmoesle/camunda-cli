@@ -31,6 +31,7 @@ describe('default runtime profile initialization', () => {
         filePath = path.join(directory, 'profiles.json');
         output = jest.fn();
         program = createDefaultCamundaCli({ homeDirectory: home, writeLine: output });
+        program.command('startup-check').action(() => undefined);
     });
 
     afterEach(async () => {
@@ -84,9 +85,9 @@ describe('default runtime profile initialization', () => {
             await mkdir(directory);
         }
         await program.initialize();
-        await program.parseAsync(['hello-world'], { from: 'user' });
+        await program.parseAsync(['startup-check'], { from: 'user' });
         await program.initialize();
-        expect(output.mock.calls).toEqual([[notice], ['Hello, World!']]);
+        expect(output.mock.calls).toEqual([[notice]]);
         expect(program.profiles.getProfiles()).toEqual([]);
         expect(await readdir(missing === 'file' ? directory : home)).toEqual([]);
         expect(await new JsonProfileRepositoryAdapter(home).listProfiles()).toEqual([]);
@@ -131,7 +132,7 @@ describe('default runtime profile initialization', () => {
     test('unreadable storage sanitizes errors before action', async () => {
         await store({ profiles });
         jest.spyOn(fs, 'open').mockRejectedValue(Object.assign(new Error('dummy-secret'), { code: 'EACCES' }));
-        await expect(program.parseAsync(['hello-world'], { from: 'user' })).rejects.toThrow(
+        await expect(program.parseAsync(['startup-check'], { from: 'user' })).rejects.toThrow(
             'Unable to access profile storage. Check permissions and available disk space.',
         );
         expect(output).not.toHaveBeenCalled();
@@ -148,7 +149,7 @@ describe('default runtime profile initialization', () => {
             await writeFile(outside, '{"profiles":[]}');
             await symlink(outside, filePath);
         }
-        await expect(program.parseAsync(['hello-world'], { from: 'user' })).rejects.toThrow('symbolic link');
+        await expect(program.parseAsync(['startup-check'], { from: 'user' })).rejects.toThrow('symbolic link');
         expect(output).not.toHaveBeenCalled();
         expect(program.profiles.getProfiles()).toEqual([]);
     });

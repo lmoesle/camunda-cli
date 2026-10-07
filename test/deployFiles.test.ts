@@ -358,8 +358,7 @@ describe('real Axios multipart requests and cached CLI runtime', () => {
 
 describe('deploy CLI and terminal presentation', () => {
     function cli(deployFiles = jest.fn()) {
-        const program = createCamundaCli({ downloadFilesInPort: { downloadFile: jest.fn(), downloadFiles: jest.fn() },
-            sayHelloWorldInPort: { sayHelloWorld: jest.fn() }, deployFilesInPort: { deployFiles } });
+        const program = createCamundaCli({ deployFilesInPort: { deployFiles } });
         for (const command of [program, ...program.commands]) command.exitOverride().configureOutput({ writeErr: jest.fn() });
         return { deployFiles, program };
     }
@@ -377,11 +376,10 @@ describe('deploy CLI and terminal presentation', () => {
     });
 
     test('optional dependency keeps existing commands usable and gives a clear deployment error', async () => {
-        const sayHelloWorld = jest.fn();
-        const program = createCamundaCli({ downloadFilesInPort: { downloadFile: jest.fn(), downloadFiles: jest.fn() },
-            sayHelloWorldInPort: { sayHelloWorld } });
-        await program.parseAsync(['node', 'cli', 'hello-world']);
-        expect(sayHelloWorld).toHaveBeenCalled();
+        const addProfile = jest.fn();
+        const program = createCamundaCli({ addProfileInPort: { addProfile } });
+        await program.parseAsync(['node', 'cli', 'add', 'profile', '--name', 'local', '--base-url', 'xxx']);
+        expect(addProfile).toHaveBeenCalledWith({ name: 'local', baseUrl: 'xxx', oAuthUrl: undefined });
         await expect(program.parseAsync(['node', 'cli', 'deploy', 'models', '--profile', 'selected'])).rejects.toThrow('DeployFilesInPort');
     });
 
