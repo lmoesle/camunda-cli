@@ -191,8 +191,7 @@ function overrideExits(cli: Command): void {
 
 describe('retry CLI', () => {
     function cli(retryIncident?: jest.Mock) {
-        const result = createCamundaCli({ downloadFilesInPort: { downloadFiles: jest.fn(), downloadFile: jest.fn() },
-            sayHelloWorldInPort: { sayHelloWorld: jest.fn() }, retryIncidentInPort: retryIncident ? { retryIncident } : undefined });
+        const result = createCamundaCli({ retryIncidentInPort: retryIncident ? { retryIncident } : undefined });
         overrideExits(result);
         return result;
     }
@@ -209,7 +208,7 @@ describe('retry CLI', () => {
         const retry = jest.fn();
         await cli(retry).parseAsync(args, { from: 'user' });
         expect(retry).toHaveBeenCalledWith(command);
-        await expect(cli().parseAsync(['hello-world'], { from: 'user' })).resolves.toBeDefined();
+        await expect(cli().parseAsync(['--help'], { from: 'user' })).rejects.toMatchObject({ exitCode: 0 });
         await expect(cli().parseAsync(args, { from: 'user' })).rejects.toThrow('RetryIncidentInPort');
         await expect(cli().parseAsync(['incident', 'retry', '--help'], { from: 'user' })).rejects.toMatchObject({ exitCode: 0 });
     });

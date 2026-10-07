@@ -444,16 +444,15 @@ describe('Operate lossless discovery and migration HTTP', () => {
 });
 
 describe('migration CLI and presentation', () => {
-    const dependencies = () => ({ downloadFilesInPort: { downloadFiles: jest.fn(), downloadFile: jest.fn() }, sayHelloWorldInPort: { sayHelloWorld: jest.fn() } });
     test('requires exact options, supports optional DI, and forwards JSON', async () => {
         const migrateProcessInstances = jest.fn();
-        const cli = createCamundaCli({ ...dependencies(), migrateProcessInstancesInPort: { migrateProcessInstances } }).exitOverride().configureOutput({ writeErr: () => {} });
+        const cli = createCamundaCli({ migrateProcessInstancesInPort: { migrateProcessInstances } }).exitOverride().configureOutput({ writeErr: () => {} });
         for (const command of cli.commands) command.exitOverride().configureOutput({ writeErr: () => {} });
         await expect(cli.parseAsync(['node', 'cli', 'migrate', '--profile', 'selected'])).rejects.toThrow('migrationPlan');
         const json = JSON.stringify([entry]);
         await cli.parseAsync(['node', 'cli', 'migrate', '--profile', 'selected', '--migrationPlan', json]);
         expect(migrateProcessInstances).toHaveBeenCalledWith({ profile: 'selected', migrationPlan: json });
-        await expect(createCamundaCli(dependencies()).parseAsync(['node', 'cli', 'migrate', '--profile', 'selected', '--migrationPlan', json])).rejects.toThrow('MigrateProcessInstancesInPort');
+        await expect(createCamundaCli({}).parseAsync(['node', 'cli', 'migrate', '--profile', 'selected', '--migrationPlan', json])).rejects.toThrow('MigrateProcessInstancesInPort');
     });
     test('escapes ANSI/control/bidi identifiers', () => {
         const write = jest.fn();

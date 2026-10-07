@@ -8,8 +8,6 @@ describe('migration and incident retry coexist', () => {
         const migrateProcessInstances = jest.fn().mockResolvedValue(undefined);
         const retryIncident = jest.fn().mockResolvedValue(undefined);
         const program = createCamundaCli({
-            downloadFilesInPort: { downloadFiles: jest.fn(), downloadFile: jest.fn() },
-            sayHelloWorldInPort: { sayHelloWorld: jest.fn() },
             migrateProcessInstancesInPort: { migrateProcessInstances },
             retryIncidentInPort: { retryIncident },
         });

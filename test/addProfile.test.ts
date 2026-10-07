@@ -94,10 +94,11 @@ describe('profile JSON storage and default CLI', () => {
         expect(await readdir(home)).toEqual([]);
     });
 
-    test('construction, help generation, and old commands do not create storage', async () => {
+    test('construction, help generation, and startup do not create storage', async () => {
         const program = createDefaultCamundaCli({ homeDirectory: home, writeLine: () => undefined });
         expect(program.helpInformation()).toContain('add');
-        await program.parseAsync(['hello-world'], { from: 'user' });
+        program.command('inspect').action(() => undefined);
+        await program.parseAsync(['inspect'], { from: 'user' });
         expect(await readdir(home)).toEqual([]);
     });
 
@@ -212,11 +213,8 @@ describe('profile JSON storage and default CLI', () => {
     });
 });
 
-test('legacy CLI dependency consumers get a clear error only when invoking add profile', async () => {
-    const program = createCamundaCli({
-        downloadFilesInPort: { downloadFiles: jest.fn(), downloadFile: jest.fn() },
-        sayHelloWorldInPort: { sayHelloWorld: jest.fn() },
-    });
+test('CLI dependency consumers get a clear error only when invoking add profile', async () => {
+    const program = createCamundaCli({});
     await expect(program.parseAsync(['add', 'profile', '--name', 'local', '--base-url', 'xxx'], { from: 'user' }))
         .rejects.toThrow('AddProfileInPort');
 });
