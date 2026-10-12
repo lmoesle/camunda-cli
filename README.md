@@ -108,6 +108,26 @@ For example, pass this array as a quoted inline value or save it in a JSON file:
 - The CLI validates the plan and discovers **all plans before any mutation**.
   Chained plans use initial snapshots: a `v2 -> v3` plan does not pick up instances newly moved by a preceding `v1 -> v2` plan.
 
+### create-migration-bundle
+
+Combine local migration plan files into one plan without a cluster connection or profile.
+
+```sh
+camunda-cli create-migration-bundle --sourceDir <directory> [--target <file>]
+camunda-cli migrate --profile <name> --migrationPlan <directory>/bundled-migrations.json
+```
+
+| Flag | Description |
+| --- | --- |
+| `--sourceDir <directory>` | Required existing non-symlink directory; recursively discover regular files with the exact `.json` suffix. Capital `D` is required. |
+| `--target <file>` | Optional output path, relative to the current working directory or absolute. Defaults to `bundled-migrations.json` inside sourceDir. The parent directory must already exist. |
+
+Every input file must contain a nonempty migration plan array using the schema described under `migrate`.
+The command sorts file paths, preserves each array's entry order, and normalizes version strings to numbers.
+It skips symlinks and non-JSON files and excludes the resolved target path on reruns.
+Invalid JSON, invalid plans, duplicate process/source-version selectors (including across files), or no input files fail without changing the output.
+After validating all inputs and the combined plan, the command atomically replaces a regular target file using a temporary file in the same directory. Symlink and special-file targets are rejected.
+
 ### incidents
 
 List all ACTIVE incidents visible to the selected profile's Operate credentials.

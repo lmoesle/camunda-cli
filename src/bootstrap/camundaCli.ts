@@ -19,6 +19,8 @@ import { LocalMigrationPlanFileAdapter } from '../adapter/out/localMigrationPlan
 import { RetryIncidentUseCase } from '../application/usecases/retryIncidentUseCase';
 import { AxiosIncidentRetryAdapter } from '../adapter/out/axiosIncidentRetryAdapter';
 import { ConsoleIncidentRetryPresenter } from '../adapter/out/consoleIncidentRetryPresenter';
+import { CreateMigrationBundleUseCase } from '../application/usecases/createMigrationBundleUseCase';
+import { LocalMigrationBundleFilesAdapter } from '../adapter/out/localMigrationBundleFilesAdapter';
 
 export interface CamundaCliBootstrapOptions {
     writeLine?: (line: string) => void;
@@ -60,6 +62,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     const initialize = (): Promise<void> => initialization ??= loadProfilesInPort.loadProfiles();
     const program = createCamundaCli({
         addProfileInPort: new AddProfileUseCase(repository),
+        createMigrationBundleInPort: new CreateMigrationBundleUseCase(new LocalMigrationBundleFilesAdapter(), new LocalMigrationPlanFileAdapter()),
         listIncidentsInPort: new ListIncidentsUseCase(cache, new AxiosIncidentAdapter(), new ConsoleIncidentsPresenter(writeLine)),
         deployFilesInPort: new DeployFilesUseCase(cache, new LocalDeploymentFilesAdapter(), new AxiosDeploymentAdapter(),
             new ConsoleDeploymentsPresenter(writeLine)),
@@ -71,7 +74,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        if (_parent === program) diagnosticCommand = ['incidents', 'incident', 'deploy', 'migrate'].includes(command.name());
+        if (_parent === program) diagnosticCommand = ['incidents', 'incident', 'deploy', 'migrate', 'create-migration-bundle'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {

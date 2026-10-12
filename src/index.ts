@@ -37,6 +37,10 @@ export { MigrateProcessInstancesUseCase } from './application/usecases/migratePr
 export { AxiosMigrationAdapter } from './adapter/out/axiosMigrationAdapter';
 export { ConsoleMigrationsPresenter } from './adapter/out/consoleMigrationsPresenter';
 export { LocalMigrationPlanFileAdapter } from './adapter/out/localMigrationPlanFileAdapter';
+export { CreateMigrationBundleUseCase } from './application/usecases/createMigrationBundleUseCase';
+export { LocalMigrationBundleFilesAdapter } from './adapter/out/localMigrationBundleFilesAdapter';
+export type { CreateMigrationBundleCommand, CreateMigrationBundleInPort } from './application/ports/in/createMigrationBundleInPort';
+export type { MigrationBundleFilesOutPort } from './application/ports/out/migrationBundleFilesOutPort';
 export type { MigrationPlanFileOutPort } from './application/ports/out/migrationPlanFileOutPort';
 export { migrationPlan, migrationConnection, MissingMigrationElement, MigrationBatchFailure } from './domain/migration';
 export type { MigrationPlanEntry, MigrationConnection, MigrationDefinition, MigrationInstance } from './domain/migration';
