@@ -4,6 +4,7 @@ import { ListIncidentsCommand, ListIncidentsInPort } from '../../application/por
 import { DeployFilesCommand, DeployFilesInPort } from '../../application/ports/in/deployFilesInPort';
 import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '../../application/ports/in/migrateProcessInstancesInPort';
 import { RetryIncidentCommand, RetryIncidentInPort } from '../../application/ports/in/retryIncidentInPort';
+import { CreateMigrationBundleCommand, CreateMigrationBundleInPort } from '../../application/ports/in/createMigrationBundleInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -17,6 +18,7 @@ export interface CamundaCliDependencies {
     deployFilesInPort?: DeployFilesInPort;
     migrateProcessInstancesInPort?: MigrateProcessInstancesInPort;
     retryIncidentInPort?: RetryIncidentInPort;
+    createMigrationBundleInPort?: CreateMigrationBundleInPort;
     version?: string;
 }
 
@@ -35,6 +37,15 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .action(async (options: MigrateProcessInstancesCommand) => {
             if (!dependencies.migrateProcessInstancesInPort) throw new Error('The migrate command requires a MigrateProcessInstancesInPort dependency.');
             await dependencies.migrateProcessInstancesInPort.migrateProcessInstances(options);
+        });
+
+    program.command('create-migration-bundle')
+        .description('Combine local migration plan JSON files recursively into one validated array')
+        .requiredOption('--sourceDir <directory>', 'directory containing migration plan JSON files (required)')
+        .option('--target <file>', 'output file (default: sourceDir/bundled-migrations.json)')
+        .action(async (options: CreateMigrationBundleCommand) => {
+            if (!dependencies.createMigrationBundleInPort) throw new Error('The create-migration-bundle command requires a CreateMigrationBundleInPort dependency.');
+            await dependencies.createMigrationBundleInPort.createMigrationBundle(options);
         });
 
     program.command('deploy')
