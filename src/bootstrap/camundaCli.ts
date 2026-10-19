@@ -21,6 +21,10 @@ import { AxiosIncidentRetryAdapter } from '../adapter/out/axiosIncidentRetryAdap
 import { ConsoleIncidentRetryPresenter } from '../adapter/out/consoleIncidentRetryPresenter';
 import { CreateMigrationBundleUseCase } from '../application/usecases/createMigrationBundleUseCase';
 import { LocalMigrationBundleFilesAdapter } from '../adapter/out/localMigrationBundleFilesAdapter';
+import { OperateApiUseCase } from '../application/usecases/operateApiUseCase';
+import { AxiosOperateApiAdapter } from '../adapter/out/axiosOperateApiAdapter';
+import { ConsoleApiResultPresenter } from '../adapter/out/consoleApiResultPresenter';
+import { operateMetadata } from '../adapter/out/operateApiSpec';
 
 export interface CamundaCliBootstrapOptions {
     writeLine?: (line: string) => void;
@@ -61,6 +65,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     let initialization: Promise<void> | undefined;
     const initialize = (): Promise<void> => initialization ??= loadProfilesInPort.loadProfiles();
     const program = createCamundaCli({
+        operateApiInPort: new OperateApiUseCase(cache, new AxiosOperateApiAdapter(), new ConsoleApiResultPresenter(writeLine), operateMetadata),
         addProfileInPort: new AddProfileUseCase(repository),
         createMigrationBundleInPort: new CreateMigrationBundleUseCase(new LocalMigrationBundleFilesAdapter(), new LocalMigrationPlanFileAdapter()),
         listIncidentsInPort: new ListIncidentsUseCase(cache, new AxiosIncidentAdapter(), new ConsoleIncidentsPresenter(writeLine)),
@@ -74,7 +79,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        if (_parent === program) diagnosticCommand = ['incidents', 'incident', 'deploy', 'migrate', 'create-migration-bundle'].includes(command.name());
+        if (_parent === program) diagnosticCommand = ['api', 'incidents', 'incident', 'deploy', 'migrate', 'create-migration-bundle'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {

@@ -1,7 +1,8 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosPromise } from 'axios';
 import { isLosslessNumber, LosslessNumber, parse, stringify } from 'lossless-json';
 import { MigrationOutPort, MigrationSession } from '../../application/ports/out/migrationOutPort';
 import { MigrationConnection, MigrationDefinition, MigrationInstance, MigrationPlanEntry, MissingMigrationElement } from '../../domain/migration';
+import { dispatchOperateRequest } from './operateApiDispatch';
 
 interface MigrationRequest {
     instanceKey: string;
@@ -12,8 +13,8 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async connect(connection: MigrationConnection): Promise<MigrationSession> {
-        const token = async (audience: string | undefined): Promise<Record<string, string>> => {
-            if (!connection.oauth) return {};
+        const token = async (audience: string | undefined): Promise<string | undefined> => {
+            if (!connection.oauth) return undefined;
             const form = new URLSearchParams({ grant_type: 'client_credentials', client_id: connection.oauth.clientId,
                 client_secret: connection.oauth.clientSecret });
             if (audience !== undefined) form.set('audience', audience);
@@ -23,21 +24,23 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
             if (typeof accessToken !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(accessToken)) {
                 throw new Error('OAuth authentication returned an invalid access_token.');
             }
-            return { Authorization: `Bearer ${accessToken}` };
+            return accessToken;
         };
-        const operateHeaders = { 'Content-Type': 'application/json', ...await token(connection.oauth?.operateAudience) };
-        const gatewayHeaders = { 'Content-Type': 'application/json', ...await token(connection.oauth?.audience) };
+        const operateToken = await token(connection.oauth?.operateAudience);
+        const gatewayToken = await token(connection.oauth?.audience);
+        const gatewayHeaders = { 'Content-Type': 'application/json', ...(gatewayToken ? { Authorization: `Bearer ${gatewayToken}` } : {}) };
+        const basePath = connection.operateUrl.replace(/\/v1$/, '');
         return {
             searchDefinitions: async (bpmnProcessId, version) => this.search(
-                `${connection.operateUrl}/process-definitions/search`, { bpmnProcessId, version }, operateHeaders,
+                basePath, 'search_2', { bpmnProcessId, version }, operateToken,
                 (value): MigrationDefinition => {
                     const item = record(value);
                     if (!item || item.bpmnProcessId !== bpmnProcessId || numericVersion(item.version) !== version) throw malformed();
                     return { key: decimalKey(item.key), bpmnProcessId, version, ...tenant(item) };
                 }),
             searchActiveInstances: async (source) => this.search(
-                `${connection.operateUrl}/process-instances/search`, { processDefinitionKey: new LosslessNumber(decimalKey(source.key)), state: 'ACTIVE' },
-                operateHeaders, (value): MigrationInstance => {
+                basePath, 'search_1', { processDefinitionKey: new LosslessNumber(decimalKey(source.key)), state: 'ACTIVE' },
+                operateToken, (value): MigrationInstance => {
                     const item = record(value);
                     if (!item || item.state !== 'ACTIVE' || decimalKey(item.processDefinitionKey) !== source.key || item.tenantId !== source.tenantId) throw malformed();
                     return { key: decimalKey(item.key), processDefinitionKey: source.key, state: 'ACTIVE', ...tenant(item) };
@@ -50,14 +53,16 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
         };
     }
 
-    private async search<T extends { key: string }>(url: string, filter: object, headers: Record<string, string>,
+    private async search<T extends { key: string }>(basePath: string, operationId: 'search_1' | 'search_2', filter: object, token: string | undefined,
         decode: (value: unknown) => T): Promise<T[]> {
         const items: T[] = [];
         let searchAfter: unknown[] | undefined;
         let previousKey: bigint | undefined;
         for (;;) {
-            const page = record(await this.request(url, stringify({ filter, size: 100,
-                sort: [{ field: 'key', order: 'ASC' }], ...(searchAfter ? { searchAfter } : {}) })!, headers, 'Operate migration discovery'));
+            const body = stringify({ filter, size: 100,
+                sort: [{ field: 'key', order: 'ASC' }], ...(searchAfter ? { searchAfter } : {}) })!;
+            const page = record(await this.request(() => dispatchOperateRequest(this.http, basePath, token,
+                { operationId, body }), body, {}, 'Operate migration discovery'));
             if (!page || !Array.isArray(page.items)) throw malformed();
             if (!page.items.length) return items;
             const batch = page.items.map(decode);
@@ -78,11 +83,11 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
         }
     }
 
-    private async request(url: string, data: string, headers: Record<string, string>, operation: string, migration?: MigrationRequest): Promise<unknown> {
+    private async request(url: string | (() => AxiosPromise<unknown>), data: string, headers: Record<string, string>, operation: string, migration?: MigrationRequest): Promise<unknown> {
         let text: unknown;
         try {
-            const response = await this.http.post(url, data, { headers, timeout: 30000, maxRedirects: 0,
-                responseType: 'text', transformResponse: [(value: unknown) => value] });
+            const response = await (typeof url === 'function' ? url() : this.http.post(url, data, { headers, timeout: 30000, maxRedirects: 0,
+                responseType: 'text', transformResponse: [(value: unknown) => value] }));
             if (response.status !== (migration ? 204 : 200) ||
                 (migration && response.data !== '' && response.data !== undefined && response.data !== null)) {
                 throw new Error(`${operation} failed (HTTP ${response.status}).`);

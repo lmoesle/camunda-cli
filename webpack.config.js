@@ -1,4 +1,5 @@
 const path = require('node:path');
+const fs = require('node:fs');
 const webpack = require('webpack');
 const packageJson = require('./package.json');
 
@@ -20,6 +21,7 @@ module.exports = {
     },
     module: {
         rules: [
+            { test: /\.yaml$/, type: 'asset/source' },
             {
                 test: /\.ts$/,
                 use: 'ts-loader',
@@ -28,6 +30,21 @@ module.exports = {
         ],
     },
     plugins: [
+        {
+            apply(compiler) {
+                compiler.hooks.thisCompilation.tap('OperateApiNotices', (compilation) => {
+                    compilation.hooks.processAssets.tap({
+                        name: 'OperateApiNotices', stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+                    }, () => {
+                        for (const file of ['LICENSE.txt', 'GENERATOR-LICENSE.txt', 'README.md', 'operate-openapi.yaml']) {
+                            compilation.emitAsset(`operate-8.7/${file}`, new webpack.sources.RawSource(
+                                fs.readFileSync(path.resolve(__dirname, 'resources/operate-8.7', file)),
+                            ));
+                        }
+                    });
+                });
+            },
+        },
         new webpack.DefinePlugin({
             CAMUNDA_CLI_VERSION: JSON.stringify(packageJson.version),
         }),

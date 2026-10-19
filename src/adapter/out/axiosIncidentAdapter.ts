@@ -1,7 +1,8 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosPromise } from 'axios';
 import { isLosslessNumber, parse, stringify } from 'lossless-json';
 import { IncidentConnection, IncidentSearchOutPort } from '../../application/ports/out/incidentSearchOutPort';
 import { Incident } from '../../domain/incident';
+import { dispatchOperateRequest } from './operateApiDispatch';
 
 export class AxiosIncidentAdapter implements IncidentSearchOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
@@ -18,15 +19,17 @@ export class AxiosIncidentAdapter implements IncidentSearchOutPort {
         if (typeof token !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(token)) {
             throw new Error('OAuth authentication returned an invalid access_token.');
         }
-        const url = `${connection.operateUrl}${connection.operateUrl.endsWith('/v1') ? '' : '/v1'}/incidents/search`;
+        const basePath = connection.operateUrl.replace(/\/v1$/, '');
         const incidents: Incident[] = [];
         let searchAfter: unknown[] | undefined;
         let previousKey: bigint | undefined;
         for (;;) {
-            const page = record(await this.request(url, stringify({
+            const body = stringify({
                 filter: { state: 'ACTIVE' }, size: 100, sort: [{ field: 'key', order: 'ASC' }],
                 ...(searchAfter ? { searchAfter } : {}),
-            })!, { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 'Operate incident search'));
+            })!;
+            const page = record(await this.request(() => dispatchOperateRequest(this.http, basePath, token,
+                { operationId: 'search_3', body }), body, {}, 'Operate incident search'));
             if (!page || !Array.isArray(page.items)) throw malformed();
             if (page.items.length === 0) return incidents;
             const items = page.items.map(incident);
@@ -49,12 +52,12 @@ export class AxiosIncidentAdapter implements IncidentSearchOutPort {
         }
     }
 
-    private async request(url: string, data: string, headers: Record<string, string>, operation: string): Promise<unknown> {
+    private async request(url: string | (() => AxiosPromise<unknown>), data: string, headers: Record<string, string>, operation: string): Promise<unknown> {
         let text: unknown;
         try {
-            const response = await this.http.post(url, data, {
+            const response = await (typeof url === 'function' ? url() : this.http.post(url, data, {
                 headers, timeout: 30000, maxRedirects: 0, responseType: 'text', transformResponse: [(value: unknown) => value],
-            });
+            }));
             text = response.data;
         } catch (error) {
             const status = axios.isAxiosError(error) ? error.response?.status : undefined;

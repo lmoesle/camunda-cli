@@ -57,3 +57,14 @@ export type { RetryIncidentCommand, RetryIncidentInPort } from './application/po
 export type { IncidentRetryOutPort, IncidentRetrySession } from './application/ports/out/incidentRetryOutPort';
 export type { IncidentRetryProfileOutPort } from './application/ports/out/incidentRetryProfileOutPort';
 export type { ShowIncidentRetryOutPort } from './application/ports/out/showIncidentRetryOutPort';
+export { OperateApiUseCase } from './application/usecases/operateApiUseCase';
+export { AxiosOperateApiAdapter } from './adapter/out/axiosOperateApiAdapter';
+export { ConsoleApiResultPresenter } from './adapter/out/consoleApiResultPresenter';
+export { listOperateOperations, prepareOperateRequest, operateMetadata } from './adapter/out/operateApiSpec';
+export { operateConnection } from './domain/operateConnection';
+export type { OperateConnection } from './domain/operateConnection';
+export type { ApiOperation, OperateRequest } from './domain/operateApiTypes';
+export type { OperateApiCommand, OperateApiInPort } from './application/ports/in/operateApiInPort';
+export type { OperateApiOutPort } from './application/ports/out/operateApiOutPort';
+export type { ShowApiResultOutPort } from './application/ports/out/showApiResultOutPort';
+export type { OperateApiProfileOutPort } from './application/ports/out/operateApiProfileOutPort';
