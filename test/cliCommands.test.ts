@@ -20,7 +20,7 @@ describe('supported CLI commands', () => {
         const writeLine = jest.fn();
         const program = overrideExits(runtime === 'default'
             ? createDefaultCamundaCli({ homeDirectory: home, writeLine }) : createCamundaCli({}));
-        expect(program.commands.map((command) => command.name())).toEqual(['migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
+        expect(program.commands.map((command) => command.name())).toEqual(['api', 'migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
         expect(program.commands.find((command) => command.name() === 'incident')!.commands.map((command) => command.name()))
             .toEqual(['retry']);
         expect(program.commands.find((command) => command.name() === 'add')!.commands.map((command) => command.name()))
@@ -54,6 +54,11 @@ const scenarios: {
     expected: object;
     missingPort: string;
 }[] = [
+    {
+        name: 'api', args: ['api', 'byKey_1', '{"path":{"key":1}}', '--profile', 'local'],
+        dependencies: (invokeApi) => ({ operateApiInPort: { invokeApi } }),
+        expected: { usecase: 'byKey_1', requestJson: '{"path":{"key":1}}', profile: 'local' }, missingPort: 'OperateApiInPort',
+    },
     {
         name: 'create-migration-bundle', args: ['create-migration-bundle', '--sourceDir', 'plans', '--target', 'bundle.json'],
         dependencies: (createMigrationBundle) => ({ createMigrationBundleInPort: { createMigrationBundle } }),

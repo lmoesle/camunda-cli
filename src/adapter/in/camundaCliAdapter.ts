@@ -5,6 +5,7 @@ import { DeployFilesCommand, DeployFilesInPort } from '../../application/ports/i
 import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '../../application/ports/in/migrateProcessInstancesInPort';
 import { RetryIncidentCommand, RetryIncidentInPort } from '../../application/ports/in/retryIncidentInPort';
 import { CreateMigrationBundleCommand, CreateMigrationBundleInPort } from '../../application/ports/in/createMigrationBundleInPort';
+import { OperateApiInPort } from '../../application/ports/in/operateApiInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -19,6 +20,7 @@ export interface CamundaCliDependencies {
     migrateProcessInstancesInPort?: MigrateProcessInstancesInPort;
     retryIncidentInPort?: RetryIncidentInPort;
     createMigrationBundleInPort?: CreateMigrationBundleInPort;
+    operateApiInPort?: OperateApiInPort;
     version?: string;
 }
 
@@ -29,6 +31,17 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .name('camunda-cli')
         .description('CLI for interacting with Camunda 8')
         .version(dependencies.version ?? cliVersion);
+
+    program.command('api')
+        .description('Call any pinned Operate 8.7 OpenAPI operation; api ls lists all operations offline')
+        .argument('<usecase>', 'exact OpenAPI operationId, or ls')
+        .argument('[request-json]', 'inline JSON object with path, query, and body sections')
+        .option('--profile <name>', 'stored OAuth profile (required except for ls)')
+        .addHelpText('after', '\nExamples:\n  api ls\n  api byKey_1 \'{"path":{"key":9007199254740993}}\' --profile local\n  api search_3 \'{"body":{"filter":{"state":"ACTIVE"}}}\' --profile local\n\nMutations run immediately without confirmation. Request JSON cannot override endpoints or authentication.\n')
+        .action(async (usecase: string, requestJson: string | undefined, options: { profile?: string }) => {
+            if (!dependencies.operateApiInPort) throw new Error('The api command requires an OperateApiInPort dependency.');
+            await dependencies.operateApiInPort.invokeApi({ usecase, requestJson, ...options });
+        });
 
     program.command('migrate')
         .description('Migrate ACTIVE process instances using Camunda 8.7 deployment versions')

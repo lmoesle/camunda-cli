@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
+  "ignorePatterns": ["src/adapter/out/generated/operate/**"],
   "entry": [
     "src/index.{ts,tsx,js,jsx}"
   ],

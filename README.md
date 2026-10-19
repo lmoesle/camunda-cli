@@ -17,7 +17,7 @@ In usage blocks, `<...>` marks a value to replace and `[...]` marks optional inp
 do not type the brackets. Quote values containing spaces.
 All commands accept `-h, --help`. The root accepts `-V, --version` (uppercase `V`), which prints the CLI version.
 `--profile` is command-specific, with no default profile or `-p` alias.
-Deploy, migrate, and retry have no dry-run or confirmation prompt. Check your profile and inputs before running them.
+Deploy, migrate, retry, and API mutations have no dry-run or confirmation prompt. Check your profile and inputs before running them.
 
 ### add profile
 
@@ -36,7 +36,7 @@ camunda-cli add profile --name <name> --base-url <url> [options]
 | `--audience <audience>` | Optional gateway OAuth audience; also the legacy Operate fallback. |
 | `--operate-audience <audience>` | Optional Operate OAuth audience override. |
 | `--oauth-url <url>` | Optional OAuth token endpoint for client-credentials authentication. |
-| `--operate-url <url>` | Optional Operate service root; required by incidents and migrate. |
+| `--operate-url <url>` | Optional Operate service root; required by api, incidents, and migrate. |
 | `--zeebe-url <url>` | Optional stored Zeebe URL; current commands do not use it. |
 
 Creating a profile does not test connectivity or authentication.
@@ -48,7 +48,51 @@ Cluster commands do not fall back to `--zeebe-url` or environment settings.
 - **OAuth:** Supply all three of `--client-id`, `--client-secret`, and `--oauth-url`; partial or blank configuration fails at use. SaaS gateway commands require an audience, normally `zeebe.camunda.io`; SaaS Operate also requires an audience, normally `operate.camunda.io`.
   For a shared SaaS migration profile, set **both** `--audience` and `--operate-audience` and grant access to both APIs. Self-Managed OAuth can omit audiences; incidents and Self-Managed migration use `--audience` when no Operate override is present.
 - **No authentication:** Self-Managed deploy, retry, and migrate can omit all OAuth fields (including audiences) only when the relevant services are intentionally configured without authentication. This does not describe default C8Run.
-  **Incidents always requires OAuth**, even on Self-Managed. Cookie and Basic authentication are not supported.
+  **Incidents and api always require OAuth**, even on Self-Managed. Cookie and Basic authentication are not supported.
+
+### api
+
+List **every operation** in the pinned official Operate 8.7 OpenAPI document, without a profile or network connection:
+
+```sh
+camunda-cli api ls
+```
+
+The JSON array includes each exact `operationId`, HTTP method, endpoint template, summary, and parameter/body schema references. Use the exact, case-sensitive `operationId` as the use case; names such as `search_3` come from the upstream document, not CLI aliases.
+
+```sh
+camunda-cli api <usecase> <request-json> --profile <name>
+
+# Read a process instance; preserve the int64 key exactly.
+camunda-cli api byKey_1 '{"path":{"key":9007199254740993}}' --profile local
+
+# Search ACTIVE incidents (one response page; api does not auto-paginate).
+camunda-cli api search_3 '{"body":{"filter":{"state":"ACTIVE"},"size":100,"sort":[{"field":"key","order":"ASC"}]}}' --profile local
+
+# Retrieve BPMN XML as a JSON string.
+camunda-cli api xmlByKey '{"path":{"key":9007199254740993}}' --profile local
+
+# Mutation: deletes the process instance from Operate immediately.
+camunda-cli api delete '{"path":{"key":9007199254740993}}' --profile local
+```
+
+Pass **inline JSON**, not a file path. The envelope accepts only these sections:
+
+| Section | Meaning |
+| --- | --- |
+| `path` | Object mapping the endpoint's `{placeholder}` names to values. Required path parameters must be present; each value becomes one percent-encoded URL segment. |
+| `query` | Object mapping spec-defined query parameter names to values. The pinned document currently defines **no query parameters**, so omit this section or use `{}`; unknown parameters fail. |
+| `body` | The actual JSON request body, without another wrapper. Omit it to send no body. Explicit `null` is not omission and must satisfy the schema. |
+
+For example, `{"path":{},"query":{},"body":{"size":10}}` invokes a search. Even operations without parameters or a body require a request envelope (`'{}'`). Unknown operationIds, envelope sections, and path/query parameters fail before OAuth or API requests. Validation follows the pinned schemas, including references, types, enums, and signed int32/int64 ranges. Additional body properties remain allowed where OpenAPI permits them. Supply integers as JSON numbers, not quoted strings; the CLI preserves their exact decimal value in requests and responses without JavaScript number rounding.
+
+The pinned upstream schema declares `searchAfter` items as objects even though some upstream examples show primitive cursor values. Validation follows the schema, not those contradictory examples. `api` does not infer additional operations, correct upstream schemas, or use another API version.
+
+Execution requires the selected profile's `operateUrl`, `oAuthUrl`, `clientId`, and `clientSecret`. `operateAudience` overrides the legacy `audience` fallback; SaaS requires an audience, while Self-Managed OAuth can omit it. The CLI preserves reverse-proxy/cluster path prefixes and avoids duplicating a trailing `/v1`. Request JSON cannot override the origin, authentication, or headers. Requests time out after 30 seconds and do not follow redirects.
+
+Stdout contains one pretty-printed JSON value: parsed JSON (including lossless int64 numbers), a JSON string for text/XML, or `null` for an empty response. Startup notices and errors go to stderr. **All operations, including mutations, run without confirmation.**
+
+For provenance, licensing, and regeneration instructions, see [the pinned spec README](resources/operate-8.7/README.md). The checked-in Axios clients come from `@openapitools/openapi-generator-cli generate`. Normal builds and tests run offline without Java; regeneration requires Java and may download the pinned generator. Tests check all 21 generated operation dispatches against the vendored document.
 
 ### deploy
 
