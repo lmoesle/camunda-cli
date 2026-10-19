@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, RawAxiosRequestConfig } from 'axios';
 import { createServer, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { Command } from 'commander';
@@ -30,8 +30,10 @@ function page(key = '9007199254740993', cursor = `[${key},"tie-breaker",90071992
 const empty = '{"items":[],"total":10000}';
 
 function mockAdapter(): { adapter: AxiosIncidentAdapter; post: jest.Mock } {
+    // Shared response script/call log; OAuth uses post, generated Operate calls use request.
     const post = jest.fn();
-    return { adapter: new AxiosIncidentAdapter({ post } as unknown as AxiosInstance), post };
+    const request = jest.fn((config: RawAxiosRequestConfig) => post(config.url, config.data, config));
+    return { adapter: new AxiosIncidentAdapter({ post, request } as unknown as AxiosInstance), post };
 }
 
 describe('incidents profile validation and orchestration', () => {

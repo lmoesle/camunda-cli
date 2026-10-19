@@ -6,10 +6,12 @@ import {
 } from './generated/operate/api';
 import { Configuration } from './generated/operate/configuration';
 
-export function dispatchOperateRequest(http: AxiosInstance, basePath: string, token: string, request: OperateRequest): AxiosPromise<unknown> {
+type DispatchRequest = Pick<OperateRequest, 'operationId' | 'body'> & Partial<Pick<OperateRequest, 'pathArguments'>>;
+
+export function dispatchOperateRequest(http: AxiosInstance, basePath: string, token: string | undefined, request: DispatchRequest): AxiosPromise<unknown> {
     const configuration = new Configuration({ basePath, accessToken: token });
     // The generated serializer defaults an absent body to {}. Preserve the exact
-    // validated JSON (and absence), including int64s and marker-colliding objects.
+    // serialized JSON (and absence), including int64s and marker-colliding objects.
     const transport = {
         defaults: {},
         request: (options: RawAxiosRequestConfig) => http.request({ ...options, data: request.body }),
@@ -28,10 +30,10 @@ export function dispatchOperateRequest(http: AxiosInstance, basePath: string, to
     };
     function call<P>(method: (parameters: P, options?: RawAxiosRequestConfig) => AxiosPromise, parameters: Record<string, unknown>) {
         // Generated number/model types cannot express lossless int64 strings or
-        // pre-serialized JSON. Only domain-validated arguments cross this cast.
+        // pre-serialized JSON. Only prepared arguments cross this cast.
         return method(parameters as P, options);
     }
-    const key = { key: request.pathArguments.key };
+    const key = { key: request.pathArguments?.key };
     const operations: Record<string, () => AxiosPromise<unknown>> = {
         byKey: () => call(variables.byKey.bind(variables), key),
         search: () => call(variables.search.bind(variables), { queryVariable: request.body }),
@@ -50,7 +52,7 @@ export function dispatchOperateRequest(http: AxiosInstance, basePath: string, to
         byKey_5: () => call(requirements.byKey5.bind(requirements), key),
         xmlByKey_1: () => call(requirements.xmlByKey1.bind(requirements), key),
         search_5: () => call(requirements.search5.bind(requirements), { queryDecisionRequirements: request.body }),
-        byId: () => call(decisions.byId.bind(decisions), { id: request.pathArguments.id }),
+        byId: () => call(decisions.byId.bind(decisions), { id: request.pathArguments?.id }),
         search_6: () => call(decisions.search6.bind(decisions), { queryDecisionInstance: request.body }),
         byKey_6: () => call(decisionDefinitions.byKey6.bind(decisionDefinitions), key),
         search_7: () => call(decisionDefinitions.search7.bind(decisionDefinitions), { queryDecisionDefinition: request.body }),

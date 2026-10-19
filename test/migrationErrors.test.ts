@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, RawAxiosRequestConfig } from 'axios';
 import { createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { AxiosMigrationAdapter, MigrateProcessInstancesUseCase, MigrationBatchFailure, MigrationPlanEntry, MissingMigrationElement, Profile } from '../src';
@@ -25,8 +25,9 @@ function setup(body: unknown, status: number | undefined = 400, entry = plan, ke
         return { status: 200, data: JSON.stringify({ items, sortValues: [items[items.length - 1].key] }) };
     });
     const presenter = { showMigrated: jest.fn(), showFailed: jest.fn(), showSummary: jest.fn() };
+    const request = jest.fn((config: RawAxiosRequestConfig) => post(config.url!, config.data));
     const usecase = new MigrateProcessInstancesUseCase({ getProfile: () => profile },
-        new AxiosMigrationAdapter({ post } as unknown as AxiosInstance), presenter);
+        new AxiosMigrationAdapter({ post, request } as unknown as AxiosInstance), presenter);
     return { post, migrate, presenter, run: () => usecase.migrateProcessInstances({ profile: 'dummy', migrationPlan: [entry] }) };
 }
 
@@ -132,7 +133,8 @@ describe('safe migration rejection diagnostics', () => {
     });
     test.each(['OAuth', 'discovery'])('does not classify a rejection from %s as migration validation', async (stage) => {
         const post = jest.fn().mockRejectedValue({ isAxiosError: true, response: { status: 400, data: JSON.stringify(problem()) } });
-        const adapter = new AxiosMigrationAdapter({ post } as unknown as AxiosInstance);
+        const request = jest.fn().mockRejectedValue({ isAxiosError: true, response: { status: 400, data: JSON.stringify(problem()) } });
+        const adapter = new AxiosMigrationAdapter({ post, request } as unknown as AxiosInstance);
         const failure = stage === 'OAuth'
             ? adapter.connect({ gatewayUrl: profile.baseUrl!, operateUrl: profile.operateUrl!, oauth: { clientId: 'dummy', clientSecret: 'dummy-secret', oAuthUrl: 'http://auth.example' } })
             : adapter.connect({ gatewayUrl: profile.baseUrl!, operateUrl: profile.operateUrl! }).then((session) => session.searchDefinitions(plan.processDefinition, 9));

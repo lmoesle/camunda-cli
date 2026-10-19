@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, RawAxiosRequestConfig } from 'axios';
 import { createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
 import fs from 'node:fs/promises';
@@ -26,7 +26,9 @@ function orchestration() {
 }
 function http() {
     const post = jest.fn();
-    return { post, adapter: new AxiosMigrationAdapter({ post } as unknown as AxiosInstance) };
+    // Share the response script/call log across OAuth/gateway post and generated Operate request.
+    const request = jest.fn((config: RawAxiosRequestConfig) => post(config.url, config.data, config));
+    return { post, adapter: new AxiosMigrationAdapter({ post, request } as unknown as AxiosInstance) };
 }
 
 describe('migration plan validation', () => {
