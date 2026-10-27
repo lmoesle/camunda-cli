@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@openapitools/openapi-generator-cli": "2.41.0",
+    "@openapitools/openapi-generator-cli": "2.42.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.19.1",
     "@typescript-eslint/eslint-plugin": "^8.71.1",
