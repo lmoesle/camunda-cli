@@ -7,7 +7,9 @@ description: Discover and use the camunda-cli command-line tool to query Camunda
 
 Use **Node.js 24 or newer** and the package **`@lmoesle/camunda-cli`**.
 This CLI targets Camunda 8.7; its `api` command exposes the pinned Operate 8.7
-API, not arbitrary Camunda endpoints or newer Orchestration Cluster APIs.
+read-only API catalogue, not arbitrary Camunda endpoints or newer Orchestration Cluster APIs.
+
+Before running any of the commands `deploy`, `migrate` or `incident retry` ask the user for permission.
 
 ## Discover before executing
 
@@ -27,7 +29,7 @@ API, not arbitrary Camunda endpoints or newer Orchestration Cluster APIs.
    ```sh
    camunda-cli api --help
    camunda-cli add profile --help
-   camunda-cli incident retry --help
+   camunda-cli incidents --help
    ```
 
    See [command discovery and catalogue](references/commands.md) for the

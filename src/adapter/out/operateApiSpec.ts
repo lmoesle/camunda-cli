@@ -2,6 +2,7 @@ import { parse } from 'yaml';
 import source from '../../../resources/operate-8.7/operate-openapi.yaml';
 import { ApiOperation, ApiParameter, OperateMetadata } from '../../domain/operateApiTypes';
 import { validateOperateRequest } from '../../domain/operateApi';
+import { isReadOnlyOperateOperation } from '../../domain/operateApiPolicy';
 
 // Read the checked-in official spec, not a second generated schema registry.
 const spec = parse(source) as {
@@ -20,7 +21,7 @@ export const operateMetadata: OperateMetadata = {
 };
 
 export function listOperateOperations(): ApiOperation[] {
-    return operateMetadata.operations;
+    return operateMetadata.operations.filter(isReadOnlyOperateOperation);
 }
 
 export function prepareOperateRequest(operationId: string, json: string) {

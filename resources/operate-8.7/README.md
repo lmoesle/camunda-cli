@@ -1,5 +1,12 @@
 # Pinned Operate 8.7 OpenAPI
 
+The pinned upstream YAML and generated SDK retain all 21 operations, including
+deletion. They are not the supported `api` catalogue. The CLI explicitly permits
+20 reviewed read-only operationId/method/path tuples: 12 GET reads and 8 POST
+searches. `api ls` lists only those reads. Unapproved operations fail before
+request parsing, profile lookup, OAuth, or cluster transport. There is no override
+flag. For write, change, or delete support, [submit a feature request](https://github.com/lmoesle/camunda-cli/issues/new).
+
 - Publisher: Camunda documentation contributors, `camunda/camunda-docs`.
 - Version: the official `api/operate/version-8.7/operate-openapi.yaml` document (its internal API version is `1.0.0`).
 - Commit: `5f4b195d9beba5c4cc3e9c6d2d4edc3bdbff894a`.

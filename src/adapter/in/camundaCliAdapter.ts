@@ -35,11 +35,11 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .version(dependencies.version ?? cliVersion);
 
     program.command('api')
-        .description('Call any pinned Operate 8.7 OpenAPI operation; api ls lists all operations offline')
+        .description('Call reviewed read-only Operate 8.7 operations; api ls lists supported operations offline')
         .argument('<usecase>', 'exact OpenAPI operationId, or ls')
         .argument('[request-json]', 'inline JSON object with path, query, and body sections')
         .option('--profile <name>', 'stored OAuth profile (required except for ls)')
-        .addHelpText('after', '\nExamples:\n  api ls\n  api byKey_1 \'{"path":{"key":9007199254740993}}\' --profile local\n  api search_3 \'{"body":{"filter":{"state":"ACTIVE"}}}\' --profile local\n\nMutations run immediately without confirmation. Request JSON cannot override endpoints or authentication.\n')
+        .addHelpText('after', '\nExamples:\n  api ls\n  api byKey_1 \'{"path":{"key":9007199254740993}}\' --profile local\n  api search_3 \'{"body":{"filter":{"state":"ACTIVE"}}}\' --profile local\n\nOnly read-only requests are supported, including POST searches. Request JSON cannot override endpoints or authentication. For write, change, or delete support, submit a feature request: https://github.com/lmoesle/camunda-cli/issues/new\n')
         .action(async (usecase: string, requestJson: string | undefined, options: { profile?: string }) => {
             if (!dependencies.operateApiInPort) throw new Error('The api command requires an OperateApiInPort dependency.');
             await dependencies.operateApiInPort.invokeApi({ usecase, requestJson, ...options });
