@@ -27,10 +27,25 @@ values containing spaces. Every cluster command requires explicit
 | `api <operationId> <request-json> --profile <name>` | Execute a supported read-only Operate operation; see [API usage](api.md). Inline request required. POST searches are read-only. |
 | `add profile --name <name> --base-url <url> [options]` | Store connection settings; see [profiles](profiles.md). Writes plaintext credentials locally, without testing them. |
 | `incidents --profile <name> [--json]` | List all visible ACTIVE incidents through Operate. Requires OAuth even on Self-Managed. Default output is a table; JSON key fields are decimal strings to preserve precision. No process or tenant filter; non-job incidents have no job key. |
+| `migration-monitor --profile <name>` | One-shot read-only Camunda 8.7 report of processes with ACTIVE instances older than the latest visible deployed numeric version (even if that version has no instances). Counts incident-bearing ACTIVE instances. Shows name, BPMN process ID, latest version, total active count across versions, and Number of outdated instances (total active instances on older versions, excluding the latest); separates tenants. Never migrates. |
 | `deploy <path> --profile <name> [-r\|--recursive]` | Deploy eligible local files independently. Mutates the cluster. |
 | `migrate --profile <name> --migrationPlan <json-or-path>` | Migrate ACTIVE instances of selected source definitions, including instances with incidents. Mutates the cluster. Capital `P` matters; no `--migration-plan` alias. |
 | `create-migration-bundle --sourceDir <directory> [--target <file>]` | Recursively combine local migration plans; no profile or cluster required. Writes/replaces the target file. Capital `D` matters. |
 | `incident retry --incident <incidentKey> --job <jobKey> --profile <name>` | Set the job's retries to 3, then request incident resolution through the gateway. Mutates the cluster; does not use Operate. |
+
+## Migration monitor boundaries
+
+The summary below the table totals active and outdated instances for displayed
+processes only (those with outdated instances), not the entire cluster. An empty
+report shows zero totals.
+
+The selected profile needs
+`operateUrl`, `oAuthUrl`, `clientId`, and `clientSecret`; no gateway is used.
+`operateAudience` overrides `audience`, and SaaS requires an audience, as for
+`incidents`. Discovery paginates all definitions and ACTIVE instances visible to
+the profile, not just definitions with instances. Operate is eventually
+consistent, not an atomic snapshot: missing or inconsistent data fails safely;
+wait for indexing and retry rather than treating the failure as a clean report.
 
 ## Deploy boundaries
 

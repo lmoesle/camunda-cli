@@ -113,6 +113,15 @@ Directory scans skip symlinks; explicitly supplied symlinks are rejected.
 **Each file uses a separate deployment request and transaction**, so cross-file same-deployment bindings are unsupported.
 Deployment stops on the first failure; earlier successes remain committed. Check cluster state before rerunning if the failed request's outcome is uncertain.
 
+### migration-monitor
+
+```sh
+camunda-cli migration-monitor --profile <name>
+```
+
+Run a one-shot, read-only Camunda report of processes with ACTIVE instances on
+versions older than their latest visible deployed numeric version.
+
 ### migrate
 
 Migrate all ACTIVE instances of each selected source definition, including instances with incidents.

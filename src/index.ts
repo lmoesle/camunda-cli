@@ -68,3 +68,12 @@ export type { OperateApiCommand, OperateApiInPort } from './application/ports/in
 export type { OperateApiOutPort } from './application/ports/out/operateApiOutPort';
 export type { ShowApiResultOutPort } from './application/ports/out/showApiResultOutPort';
 export type { OperateApiProfileOutPort } from './application/ports/out/operateApiProfileOutPort';
+export { MigrationMonitorUseCase } from './application/usecases/migrationMonitorUseCase';
+export { AxiosMigrationMonitorAdapter } from './adapter/out/axiosMigrationMonitorAdapter';
+export { ConsoleMigrationMonitorPresenter } from './adapter/out/consoleMigrationMonitorPresenter';
+export { migrationMonitorReport } from './domain/migrationMonitor';
+export type { MonitorDefinition, MonitorInstance, MigrationMonitorRow } from './domain/migrationMonitor';
+export type { MigrationMonitorCommand, MigrationMonitorInPort } from './application/ports/in/migrationMonitorInPort';
+export type { MigrationMonitorOutPort } from './application/ports/out/migrationMonitorOutPort';
+export type { MigrationMonitorProfileOutPort } from './application/ports/out/migrationMonitorProfileOutPort';
+export type { ShowMigrationMonitorOutPort } from './application/ports/out/showMigrationMonitorOutPort';

@@ -6,6 +6,7 @@ import { MigrateProcessInstancesCommand, MigrateProcessInstancesInPort } from '.
 import { RetryIncidentCommand, RetryIncidentInPort } from '../../application/ports/in/retryIncidentInPort';
 import { CreateMigrationBundleCommand, CreateMigrationBundleInPort } from '../../application/ports/in/createMigrationBundleInPort';
 import { OperateApiInPort } from '../../application/ports/in/operateApiInPort';
+import { MigrationMonitorCommand, MigrationMonitorInPort } from '../../application/ports/in/migrationMonitorInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -21,6 +22,7 @@ export interface CamundaCliDependencies {
     retryIncidentInPort?: RetryIncidentInPort;
     createMigrationBundleInPort?: CreateMigrationBundleInPort;
     operateApiInPort?: OperateApiInPort;
+    migrationMonitorInPort?: MigrationMonitorInPort;
     version?: string;
 }
 
@@ -41,6 +43,14 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .action(async (usecase: string, requestJson: string | undefined, options: { profile?: string }) => {
             if (!dependencies.operateApiInPort) throw new Error('The api command requires an OperateApiInPort dependency.');
             await dependencies.operateApiInPort.invokeApi({ usecase, requestJson, ...options });
+        });
+
+    program.command('migration-monitor')
+        .description('Report ACTIVE instances on outdated deployed process versions (read-only, Camunda 8.7)')
+        .requiredOption('--profile <name>', 'stored Operate OAuth profile name (required)')
+        .action(async (options: MigrationMonitorCommand) => {
+            if (!dependencies.migrationMonitorInPort) throw new Error('The migration-monitor command requires a MigrationMonitorInPort dependency.');
+            await dependencies.migrationMonitorInPort.monitorMigration(options);
         });
 
     program.command('migrate')
