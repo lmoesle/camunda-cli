@@ -3,12 +3,14 @@ import { parse } from 'lossless-json';
 import { OperateApiOutPort } from '../../application/ports/out/operateApiOutPort';
 import { OperateConnection } from '../../domain/operateConnection';
 import { OperateRequest } from '../../domain/operateApiTypes';
+import { assertReadOnlyOperateDispatch } from '../../domain/operateApiPolicy';
 import { dispatchOperateRequest } from './operateApiDispatch';
 
 export class AxiosOperateApiAdapter implements OperateApiOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async execute(connection: OperateConnection, request: OperateRequest): Promise<unknown> {
+        assertReadOnlyOperateDispatch(request);
         const form = new URLSearchParams({
             grant_type: 'client_credentials', client_id: connection.clientId, client_secret: connection.clientSecret,
         });

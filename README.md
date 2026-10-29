@@ -17,7 +17,7 @@ In usage blocks, `<...>` marks a value to replace and `[...]` marks optional inp
 do not type the brackets. Quote values containing spaces.
 All commands accept `-h, --help`. The root accepts `-V, --version` (uppercase `V`), which prints the CLI version.
 `--profile` is command-specific, with no default profile or `-p` alias.
-Deploy, migrate, retry, and API mutations have no dry-run or confirmation prompt. Check your profile and inputs before running them.
+Deploy, migrate, and retry have no dry-run or confirmation prompt. Check your profile and inputs before running them. The `api` command supports only read-only cluster requests.
 
 ### add profile
 
@@ -52,7 +52,7 @@ Cluster commands do not fall back to `--zeebe-url` or environment settings.
 
 ### api
 
-List **every operation** in the pinned official Operate 8.7 OpenAPI document, without a profile or network connection:
+List the **20 supported read-only operations** from the pinned official Operate 8.7 OpenAPI document, without a profile or network connection:
 
 ```sh
 camunda-cli api ls
@@ -71,9 +71,6 @@ camunda-cli api search_3 '{"body":{"filter":{"state":"ACTIVE"},"size":100,"sort"
 
 # Retrieve BPMN XML as a JSON string.
 camunda-cli api xmlByKey '{"path":{"key":9007199254740993}}' --profile local
-
-# Mutation: deletes the process instance from Operate immediately.
-camunda-cli api delete '{"path":{"key":9007199254740993}}' --profile local
 ```
 
 Pass **inline JSON**, not a file path. The envelope accepts only these sections:
@@ -90,9 +87,11 @@ The pinned upstream schema declares `searchAfter` items as objects even though s
 
 Execution requires the selected profile's `operateUrl`, `oAuthUrl`, `clientId`, and `clientSecret`. `operateAudience` overrides the legacy `audience` fallback; SaaS requires an audience, while Self-Managed OAuth can omit it. The CLI preserves reverse-proxy/cluster path prefixes and avoids duplicating a trailing `/v1`. Request JSON cannot override the origin, authentication, or headers. Requests time out after 30 seconds and do not follow redirects.
 
-Stdout contains one pretty-printed JSON value: parsed JSON (including lossless int64 numbers), a JSON string for text/XML, or `null` for an empty response. Startup notices and errors go to stderr. **All operations, including mutations, run without confirmation.**
+Stdout contains one pretty-printed JSON value: parsed JSON (including lossless int64 numbers), a JSON string for text/XML, or `null` for an empty response. Startup notices and errors go to stderr.
 
-For provenance, licensing, and regeneration instructions, see [the pinned spec README](resources/operate-8.7/README.md). The checked-in Axios clients come from `@openapitools/openapi-generator-cli generate`. Normal builds and tests run offline without Java; regeneration requires Java and may download the pinned generator. Tests check all 21 generated operation dispatches against the vendored document.
+`api` permits only explicitly reviewed operationId/method/path combinations: 12 GET reads and 8 read-only POST searches. OAuth also uses POST; neither authentication nor search changes cluster state. The upstream document and generated SDK retain all 21 operations, but `api ls` excludes deletion. The CLI rejects deletion and unapproved operations before parsing the request, looking up a profile, authenticating, or contacting the cluster. There is no override flag. For write, change, or delete support, [submit a feature request](https://github.com/lmoesle/camunda-cli/issues/new). Existing dedicated `deploy`, `migrate`, and `incident retry` commands remain unchanged; the camunda-cli agent skill must not execute them or use another HTTP client to bypass its read-only boundary.
+
+For provenance, licensing, and regeneration instructions, see [the pinned spec README](resources/operate-8.7/README.md). The checked-in Axios clients come from `@openapitools/openapi-generator-cli generate`. Normal builds and tests run offline without Java; regeneration requires Java and may download the pinned generator. Tests check all 20 supported generated operation dispatches against the vendored document and verify rejection of deletion and unapproved operations.
 
 ### deploy
 

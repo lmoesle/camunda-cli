@@ -11,8 +11,9 @@ import {
     AxiosOperateApiAdapter, ConsoleApiResultPresenter, createCamundaCli, createDefaultCamundaCli,
     listOperateOperations, operateConnection, operateMetadata, OperateApiUseCase, prepareOperateRequest, Profile, runDefaultCamundaCli,
 } from '../src';
-import { ApiSchema } from '../src/domain/operateApiTypes';
+import { ApiSchema, OperateRequest } from '../src/domain/operateApiTypes';
 import * as generated from '../src/adapter/out/generated/operate/api';
+import { dispatchOperateRequest } from '../src/adapter/out/operateApiDispatch';
 
 const profile: Profile = {
     name: 'dummy', baseUrl: 'https://unused.invalid', operateUrl: 'https://operate.invalid/prefix/',
@@ -27,7 +28,7 @@ function fixture() {
 }
 
 describe('pinned official Operate registry', () => {
-    test('covers every operation in the checked-in official spec exactly', () => {
+    test('exposes only the reviewed reads while preserving the complete upstream spec', () => {
         const source = readFileSync(path.resolve(__dirname, '../resources/operate-8.7/operate-openapi.yaml'), 'utf8');
         expect(createHash('sha256').update(source).digest('hex')).toBe('0f1cfa4a3dfcaaa551f8ceb899b41af57d6c799723dbc4b5e632883742df14df');
         const spec = parseYaml(source);
@@ -35,7 +36,10 @@ describe('pinned official Operate registry', () => {
             Object.entries(item as Record<string, { operationId: string }>).map(([method, op]) => ({
                 operationId: op.operationId, method: method.toUpperCase(), path: url,
             })));
-        expect(listOperateOperations().map(({ operationId, method, path }) => ({ operationId, method, path }))).toEqual(expected);
+        expect(listOperateOperations().map(({ operationId, method, path }) => ({ operationId, method, path })))
+            .toEqual(expected.filter((operation) => operation.operationId !== 'delete'));
+        expect(listOperateOperations().filter((operation) => operation.method === 'GET')).toHaveLength(12);
+        expect(listOperateOperations().filter((operation) => operation.method === 'POST')).toHaveLength(8);
         expect(expected).toHaveLength(21);
         expect(new Set(expected.map((operation) => operation.operationId)).size).toBe(expected.length);
     });
@@ -70,21 +74,22 @@ describe('pinned official Operate registry', () => {
         }
     });
 
-    test('lists offline without accessing profiles or transport; includes mutation and XML operations', async () => {
+    test('lists only reads offline without accessing profiles or transport, including XML', async () => {
         const { usecase, profiles, api, presenter } = fixture();
         await usecase.invokeApi({ usecase: 'ls' });
         expect(profiles.getProfile).not.toHaveBeenCalled();
         expect(api.execute).not.toHaveBeenCalled();
         expect(presenter.showApiResult).toHaveBeenCalledWith(expect.arrayContaining([
-            expect.objectContaining({ operationId: 'delete', method: 'DELETE' }),
             expect.objectContaining({ operationId: 'xmlByKey', path: '/v1/process-definitions/{key}/xml' }),
         ]));
+        expect(presenter.showApiResult.mock.calls[0][0]).toHaveLength(20);
+        expect(presenter.showApiResult.mock.calls[0][0]).not.toContainEqual(expect.objectContaining({ operationId: 'delete' }));
     });
 });
 
 describe('API validation and application dispatch', () => {
     test.each([
-        ['delete', '{"path":{"key":{"isLosslessNumber":true,"value":"9"}}}'],
+        ['byKey_1', '{"path":{"key":{"isLosslessNumber":true,"value":"9"}}}'],
         ['search', '{"body":{"filter":{"key":{"isLosslessNumber":true,"value":"9"}}}}'],
     ])('rejects spoofed integer objects for %s before profile lookup or transport', async (operation, requestJson) => {
         const { usecase, profiles, api } = fixture();
@@ -118,7 +123,7 @@ describe('API validation and application dispatch', () => {
         ['byId', '{"path":{"id":".."}}'], ['byId', '{"path":{"id":""}}'],
     ])('%s rejects invalid request %s before profile lookup or OAuth/network', async (usecase, requestJson) => {
         const fixtureValue = fixture();
-        await expect(fixtureValue.usecase.invokeApi({ usecase, requestJson, profile: 'dummy' })).rejects.toThrow(/Invalid API request|Unknown Operate API/);
+        await expect(fixtureValue.usecase.invokeApi({ usecase, requestJson, profile: 'dummy' })).rejects.toThrow(/Invalid API request|Unknown or unsupported Operate API/);
         expect(fixtureValue.profiles.getProfile).not.toHaveBeenCalled();
         expect(fixtureValue.api.execute).not.toHaveBeenCalled();
     });
@@ -144,11 +149,32 @@ describe('API validation and application dispatch', () => {
             .toBe('/v1/decision-instances/a%2Fb%20%3F%23%25%E9%9B%AA');
     });
 
-    test('executes delete immediately and presents its result', async () => {
-        const { usecase, api, presenter } = fixture();
-        await usecase.invokeApi({ usecase: 'delete', requestJson: '{"path":{"key":9}}', profile: 'dummy' });
-        expect(api.execute).toHaveBeenCalledWith(operateConnection(profile, 'api'), expect.objectContaining({ operationId: 'delete', method: 'DELETE', path: '/v1/process-instances/9', query: '', pathArguments: { key: '9' } }));
-        expect(presenter.showApiResult).toHaveBeenCalledWith(null);
+    test.each(['{"path":{"key":9}}', 'not JSON dummy-secret', undefined])('rejects delete before parsing, profiles, or transport: %s', async (requestJson) => {
+        const { usecase, profiles, api, presenter } = fixture();
+        const failure = usecase.invokeApi({ usecase: 'delete', requestJson });
+        await expect(failure).rejects.toThrow('read-only');
+        await expect(failure).rejects.toThrow('https://github.com/lmoesle/camunda-cli/issues/new');
+        await expect(failure).rejects.not.toThrow('dummy-secret');
+        expect(profiles.getProfile).not.toHaveBeenCalled();
+        expect(api.execute).not.toHaveBeenCalled();
+        expect(presenter.showApiResult).not.toHaveBeenCalled();
+    });
+
+    test.each([
+        { operationId: 'futureRead', method: 'GET', path: '/v1/future' },
+        { operationId: 'futureSearch', method: 'POST', path: '/v1/future/search' },
+        { operationId: 'search', method: 'DELETE', path: '/v1/variables/search' },
+        { operationId: 'search', method: 'POST', path: '/v1/future/search' },
+        { operationId: 'delete', method: 'GET', path: '/v1/process-instances/{key}' },
+    ])('fails closed for unreviewed metadata tuples: $operationId $method $path', async (tuple) => {
+        const { profiles, api, presenter } = fixture();
+        const metadata = { ...operateMetadata, operations: [{ ...tuple, summary: '', parameters: [] }] };
+        const usecase = new OperateApiUseCase(profiles, api, presenter, metadata);
+        await usecase.invokeApi({ usecase: 'ls' });
+        expect(presenter.showApiResult).toHaveBeenCalledWith([]);
+        await expect(usecase.invokeApi({ usecase: tuple.operationId, requestJson: 'malformed' })).rejects.toThrow('read-only');
+        expect(profiles.getProfile).not.toHaveBeenCalled();
+        expect(api.execute).not.toHaveBeenCalled();
     });
 
     test.each([undefined, '', '  '])('requires a profile for execution: %s', async (selected) => {
@@ -194,8 +220,62 @@ describe('safe lossless HTTP transport and presentation', () => {
         return { request, adapter: new AxiosOperateApiAdapter({ request } as unknown as AxiosInstance) };
     }
 
+    test.each(['adapter', 'dispatcher'].flatMap((boundary) => ['byId', 'xmlByKey'].flatMap((operationId) =>
+        [undefined, '', '.', '..'].flatMap((value) => [false, true].map((includePath) => ({ boundary, operationId, value, includePath }))))))(
+        '$boundary rejects missing/unsafe template arguments before OAuth/transport: $operationId value=$value includePath=$includePath',
+        async ({ boundary, operationId, value, includePath }) => {
+            const { request, adapter } = transport();
+            const prepared = prepareOperateRequest(operationId, operationId === 'byId' ? '{"path":{"id":"opaque"}}' : '{"path":{"key":9}}');
+            const name = operationId === 'byId' ? 'id' : 'key';
+            const template = listOperateOperations().find((operation) => operation.operationId === operationId)!.path;
+            // JavaScript library callers can omit transport metadata or required arguments.
+            const forged = {
+                ...prepared, pathArguments: value === undefined ? {} : { [name]: value },
+                path: includePath ? template.replace(`{${name}}`, value ?? '') : undefined,
+            } as OperateRequest;
+            if (boundary === 'adapter') await expect(adapter.execute(connection, forged)).rejects.toThrow('read-only');
+            else await expect(async () => dispatchOperateRequest({ request } as unknown as AxiosInstance, 'https://operate.invalid', undefined, forged))
+                .rejects.toThrow('read-only');
+            expect(request).not.toHaveBeenCalled();
+        },
+    );
+
+    test.each([
+        { operationId: 'delete', method: 'DELETE', path: '/v1/process-instances/9' },
+        { operationId: 'delete', method: 'GET', path: '/v1/process-instances/9' },
+        { operationId: 'future', method: 'GET', path: '/v1/future' },
+        { operationId: 'futureSearch', method: 'POST', path: '/v1/future/search' },
+        { operationId: 'search', method: 'DELETE', path: '/v1/variables/search' },
+        { operationId: 'search', method: 'POST', path: '/v1/process-instances/9' },
+        { operationId: 'byKey_1', method: 'GET', path: '/v1/process-instances/9/delete' },
+    ])('adapter and dispatcher reject forged requests before OAuth/transport: $operationId $method $path', async (tuple) => {
+        const { request, adapter } = transport();
+        const forged = { ...tuple, pathArguments: { key: '9' }, queryArguments: {}, query: '', body: 'malformed dummy-secret' };
+        await expect(adapter.execute(connection, forged)).rejects.toThrow('read-only');
+        expect(() => dispatchOperateRequest({ request } as unknown as AxiosInstance, 'https://operate.invalid', 'dummy', forged))
+            .toThrow('read-only');
+        expect(request).not.toHaveBeenCalled();
+    });
+
+    test.each(['delete', 'future', 'toString', '__proto__'])('dispatcher rejects unapproved IDs even without method/path: %s', (operationId) => {
+        const request = jest.fn();
+        expect(() => dispatchOperateRequest({ request } as unknown as AxiosInstance, 'https://operate.invalid', undefined, { operationId }))
+            .toThrow('read-only');
+        expect(request).not.toHaveBeenCalled();
+    });
+
+    test.each(['a/b ?#%雪', '%2e%2e', '..opaque'])('dispatcher preserves opaque IDs without optional path metadata: %s', async (id) => {
+        const request = jest.fn().mockResolvedValue(response('{}'));
+        await dispatchOperateRequest({ request } as unknown as AxiosInstance, 'https://operate.invalid', undefined, {
+            operationId: 'byId', pathArguments: { id },
+        });
+        expect(request).toHaveBeenCalledWith(expect.objectContaining({
+            method: 'GET', url: `https://operate.invalid/v1/decision-instances/${encodeURIComponent(id)}`,
+        }));
+    });
+
     test.each(listOperateOperations())('dispatches $operationId through its real generated method with exact arguments', async (operation) => {
-        const method = operation.operationId === 'delete' ? '_delete' : operation.operationId.replace(/_(\d+)$/, '$1');
+        const method = operation.operationId.replace(/_(\d+)$/, '$1');
         const classes = [generated.VariableApi, generated.ProcessInstanceApi, generated.ProcessDefinitionApi,
             generated.IncidentApi, generated.FlownodeInstanceApi, generated.DecisionRequirementsApi,
             generated.DecisionInstanceApi, generated.DecisionDefinitionApi];
@@ -302,7 +382,7 @@ describe('api CLI integration', () => {
     beforeEach(async () => { home = await mkdtemp(path.join(tmpdir(), 'cli-api-')); });
     afterEach(async () => { await rm(home, { recursive: true, force: true }); });
 
-    test('dispatches api ls and documents request shape and mutation behavior in help', async () => {
+    test('dispatches api ls and documents request shape and read-only behavior in help', async () => {
         const invokeApi = jest.fn();
         const program = createCamundaCli({ operateApiInPort: { invokeApi } });
         await program.parseAsync(['api', 'ls'], { from: 'user' });
@@ -312,7 +392,8 @@ describe('api CLI integration', () => {
         command.exitOverride().configureOutput({ writeOut });
         await expect(program.parseAsync(['api', '--help'], { from: 'user' })).rejects.toMatchObject({ code: 'commander.helpDisplayed' });
         expect(writeOut.mock.calls.flat().join('')).toMatch(/path.*query.*body/s);
-        expect(writeOut.mock.calls.flat().join('')).toContain('without confirmation');
+        expect(writeOut.mock.calls.flat().join('')).toContain('Only read-only requests');
+        expect(writeOut.mock.calls.flat().join('')).toContain('https://github.com/lmoesle/camunda-cli/issues/new');
     });
 
     test('default runtime and executable bootstrap keep startup notices off JSON stdout', async () => {
@@ -322,7 +403,7 @@ describe('api CLI integration', () => {
             if (mode === 'program') await createDefaultCamundaCli(options).parseAsync(['api', 'ls'], { from: 'user' });
             else await runDefaultCamundaCli(['node', 'camunda-cli', 'api', 'ls'], options);
             expect(writeLine).toHaveBeenCalledTimes(1);
-            expect(JSON.parse(writeLine.mock.calls[0][0])).toHaveLength(21);
+            expect(JSON.parse(writeLine.mock.calls[0][0])).toHaveLength(20);
             expect(writeDiagnostic).toHaveBeenCalledTimes(1);
         }
     });
@@ -345,7 +426,7 @@ describe('api CLI integration', () => {
         });
         expect(child.error).toBeUndefined();
         expect(child.status).toBe(0);
-        expect(JSON.parse(child.stdout)).toHaveLength(21);
+        expect(JSON.parse(child.stdout)).toHaveLength(20);
         expect(child.stderr).toMatch(/profile/i);
     });
 });

@@ -1,4 +1,5 @@
 import { validateOperateRequest } from '../../domain/operateApi';
+import { isReadOnlyOperateOperation } from '../../domain/operateApiPolicy';
 import { OperateMetadata } from '../../domain/operateApiTypes';
 import { operateConnection } from '../../domain/operateConnection';
 import { OperateApiCommand, OperateApiInPort } from '../ports/in/operateApiInPort';
@@ -17,7 +18,7 @@ export class OperateApiUseCase implements OperateApiInPort {
     async invokeApi(command: OperateApiCommand): Promise<void> {
         if (command.usecase === 'ls') {
             if (command.requestJson !== undefined || command.profile !== undefined) throw new Error('api ls takes no request or profile.');
-            this.presenter.showApiResult(this.metadata.operations);
+            this.presenter.showApiResult(this.metadata.operations.filter(isReadOnlyOperateOperation));
             return;
         }
         const request = validateOperateRequest(command.usecase, command.requestJson ?? '', this.metadata);

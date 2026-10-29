@@ -7,8 +7,10 @@ camunda-cli api --help
 camunda-cli api ls
 ```
 
-`api ls` returns a JSON array of all 21 operations in the pinned official
-Operate 8.7 OpenAPI document. It needs no profile or network request; do not
+`api ls` returns a JSON array of 20 supported read-only operations (12 GET reads
+and 8 POST searches) from the pinned official Operate 8.7 OpenAPI document.
+The upstream document and generated SDK retain 21 operations, including deletion;
+they are not the supported CLI catalogue. Listing needs no profile or network request; do not
 pass a request or `--profile`. Each entry contains `operationId`, `method`,
 `path`, `summary`, `parameters`, and, where applicable, `requestBody` metadata.
 Use the exact operationId, including suffixes such as `search_3`; do not use
@@ -116,16 +118,19 @@ For all ACTIVE incidents, consider the dedicated `incidents` command instead.
   Decode the JSON string if you need XML; redirecting stdout alone does not
   produce a raw BPMN XML file. Startup notices and errors go to stderr.
 - On errors, share only sanitized diagnostics. Verify inputs and profile
-  configuration without exposing secrets. A timeout does not prove a mutation
-  failed; inspect state before retrying.
+  configuration without exposing secrets. Do not work around rejected operations.
 
-## Mutation guard
+## Read-only boundary
 
-Inspect the method and summary in `api ls` before execution. Do not equate
-every POST with a mutation: the search operations are read-only.
+Select only supported operations from `api ls`. The CLI explicitly approves
+reviewed operationId/method/path tuples, not all GETs or arbitrary POST searches.
+The eight POST searches read data without changing cluster state. OAuth uses POST
+for authentication and remains supported.
 
-The operationId **`delete`** deletes a process instance **from Operate only**;
-it does not cancel a running instance in the process engine. Obtain explicit
-authorization for that deletion and confirm the cluster and instance key.
-All API operations execute immediately, with **no dry-run or confirmation**.
-Do not use a mutation as a connectivity test.
+The CLI rejects `delete` and unapproved operations before request parsing,
+profile lookup, OAuth, or cluster transport. There is no override flag.
+For write, change, or delete support, direct the user to
+[submit a feature request](https://github.com/lmoesle/camunda-cli/issues/new).
+Do not execute dedicated `deploy`, `migrate`, or `incident retry` commands,
+even with user authorization. Do not bypass the boundary through curl, SDKs,
+other HTTP clients, or alternate commands/tools.

@@ -9,6 +9,7 @@ camunda-cli help deploy
 camunda-cli api --help
 camunda-cli add profile --help
 camunda-cli incident retry --help
+camunda-cli incidents --help
 ```
 
 All commands accept `-h, --help`. Only the root accepts `-V, --version`
@@ -22,8 +23,8 @@ values containing spaces. Every cluster command requires explicit
 
 | Command syntax | Purpose and cautions |
 | --- | --- |
-| `api ls` | Offline pinned Operate operation catalogue; accepts neither request nor profile. |
-| `api <operationId> <request-json> --profile <name>` | Execute a pinned Operate operation; see [API usage](api.md). Inline request required; mutation operations run immediately. |
+| `api ls` | Offline catalogue of 20 supported read-only Operate operations; accepts neither request nor profile. |
+| `api <operationId> <request-json> --profile <name>` | Execute a supported read-only Operate operation; see [API usage](api.md). Inline request required. POST searches are read-only. |
 | `add profile --name <name> --base-url <url> [options]` | Store connection settings; see [profiles](profiles.md). Writes plaintext credentials locally, without testing them. |
 | `incidents --profile <name> [--json]` | List all visible ACTIVE incidents through Operate. Requires OAuth even on Self-Managed. Default output is a table; JSON key fields are decimal strings to preserve precision. No process or tenant filter; non-job incidents have no job key. |
 | `deploy <path> --profile <name> [-r\|--recursive]` | Deploy eligible local files independently. Mutates the cluster. |
@@ -36,11 +37,6 @@ values containing spaces. Every cluster command requires explicit
 Only regular files with exact, case-sensitive `.bpmn`, `.dmn`, or `.form`
 suffixes qualify. Directory scans are shallow unless `-r`/`--recursive` is
 present. Scans skip symlinks; explicit symlinks fail.
-
-Each file gets a separate deployment request and transaction. Do not promise
-cross-file same-deployment bindings. Execution stops at the first failure;
-earlier successes stay committed. Confirm authorization and review resources
-before deploying. Inspect cluster state before retrying uncertain requests.
 
 ## Migration plans and bundles
 
@@ -86,6 +82,8 @@ Bundling does **not** perform migration or validate the cluster's definitions.
 
 ## Incident retry boundaries
 
+Before retrying incidents ask the user for permission.
+
 Fix the underlying cause first. Only job incidents qualify. Supply the matching
 incident and job keys as positive decimal int64 values
 (`1`–`9223372036854775807`); the CLI does not verify their relationship.
@@ -93,7 +91,5 @@ The retry count is fixed at 3, with no adjustable flag.
 
 If resolution fails after the job update, retries stay updated without
 rollback. Success means the requests were accepted, not that the job
-completed. Obtain authorization and inspect state before rerunning.
+completed.
 
-Deploy, migrate, retry, and API mutations provide **no dry-run or confirmation
-prompt**. Treat partial or uncertain outcomes explicitly.

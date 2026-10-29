@@ -1,14 +1,16 @@
 import { AxiosInstance, AxiosPromise, RawAxiosRequestConfig } from 'axios';
 import { OperateRequest } from '../../domain/operateApiTypes';
+import { assertReadOnlyOperateDispatch } from '../../domain/operateApiPolicy';
 import {
     DecisionDefinitionApi, DecisionInstanceApi, DecisionRequirementsApi, FlownodeInstanceApi,
     IncidentApi, ProcessDefinitionApi, ProcessInstanceApi, VariableApi,
 } from './generated/operate/api';
 import { Configuration } from './generated/operate/configuration';
 
-type DispatchRequest = Pick<OperateRequest, 'operationId' | 'body'> & Partial<Pick<OperateRequest, 'pathArguments'>>;
+type DispatchRequest = Pick<OperateRequest, 'operationId' | 'body'> & Partial<Pick<OperateRequest, 'pathArguments' | 'method' | 'path'>>;
 
 export function dispatchOperateRequest(http: AxiosInstance, basePath: string, token: string | undefined, request: DispatchRequest): AxiosPromise<unknown> {
+    assertReadOnlyOperateDispatch(request);
     const configuration = new Configuration({ basePath, accessToken: token });
     // The generated serializer defaults an absent body to {}. Preserve the exact
     // serialized JSON (and absence), including int64s and marker-colliding objects.
@@ -38,7 +40,6 @@ export function dispatchOperateRequest(http: AxiosInstance, basePath: string, to
         byKey: () => call(variables.byKey.bind(variables), key),
         search: () => call(variables.search.bind(variables), { queryVariable: request.body }),
         byKey_1: () => call(instances.byKey1.bind(instances), key),
-        delete: () => call(instances._delete.bind(instances), key),
         getStatistics: () => call(instances.getStatistics.bind(instances), key),
         sequenceFlowsByKey: () => call(instances.sequenceFlowsByKey.bind(instances), key),
         search_1: () => call(instances.search1.bind(instances), { queryProcessInstance: request.body }),

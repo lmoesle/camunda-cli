@@ -18,7 +18,15 @@ test('dist-only executable and library embed the spec and generated clients with
             cwd: home, env, encoding: 'utf8', timeout: 10000,
         });
         expect(executable.status).toBe(0);
-        expect(JSON.parse(executable.stdout)).toHaveLength(21);
+        expect(JSON.parse(executable.stdout)).toHaveLength(20);
+        expect(JSON.parse(executable.stdout)).not.toContainEqual(expect.objectContaining({ operationId: 'delete' }));
+        const deletion = spawnSync(process.execPath, [path.join(output, 'bin/camunda-cli.js'), 'api', 'delete', 'malformed'], {
+            cwd: home, env, encoding: 'utf8', timeout: 10000,
+        });
+        expect(deletion.status).not.toBe(0);
+        expect(deletion.stdout).toBe('');
+        expect(deletion.stderr).toContain('read-only');
+        expect(deletion.stderr).toContain('https://github.com/lmoesle/camunda-cli/issues/new');
         const library = spawnSync(process.execPath, ['-e', `
             const api = require(${JSON.stringify(path.join(output, 'index.js'))});
             const prepared = api.prepareOperateRequest('byKey', '{"path":{"key":9223372036854775807}}');
@@ -28,10 +36,25 @@ test('dist-only executable and library embed the spec and generated clients with
                 return {status: 200, headers: {'content-type': 'application/json'},
                     data: options.url.endsWith('/token') ? '{"access_token":"dummy-token"}' : '{"key":9007199254740993}'};
             }});
-            adapter.execute({operateUrl: 'https://operate.invalid/prefix/v1', oAuthUrl: 'https://oauth.invalid/token',
+            const blocked = [
+                {...prepared, operationId: 'delete', method: 'GET'},
+                {...prepared, method: 'DELETE'},
+                {...prepared, path: '/v1/future'},
+                {...prepared, operationId: 'future'}
+            ];
+            (async () => {
+                for (const request of blocked) {
+                    try { await adapter.execute({}, request); throw new Error('unexpected success'); }
+                    catch (error) { if (!error.message.includes('read-only')) throw error; }
+                }
+                try { api.prepareOperateRequest('delete', 'malformed'); throw new Error('unexpected success'); }
+                catch (error) { if (!error.message.includes('read-only')) throw error; }
+                if (requests.length) throw new Error('unexpected network');
+                await adapter.execute({operateUrl: 'https://operate.invalid/prefix/v1', oAuthUrl: 'https://oauth.invalid/token',
                 clientId: 'dummy-id', clientSecret: 'dummy-secret'}, prepared).then(() => {
                     console.log(JSON.stringify({prepared, request: requests[1]}));
-                }).catch(() => { process.exitCode = 1; });
+                });
+            })().catch(() => { process.exitCode = 1; });
         `], { cwd: home, env, encoding: 'utf8', timeout: 10000 });
         expect(library.status).toBe(0);
         expect(JSON.parse(library.stdout)).toMatchObject({

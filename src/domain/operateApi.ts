@@ -1,6 +1,7 @@
 import { LosslessNumber, parse } from 'lossless-json';
 import { stringifyApiJson } from './apiJson';
 import { ApiOperation, ApiSchema, OperateMetadata, OperateRequest } from './operateApiTypes';
+import { assertReadOnlyOperateOperation } from './operateApiPolicy';
 
 function object(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof LosslessNumber);
@@ -117,7 +118,7 @@ function requestBody(operation: ApiOperation, input: { body?: unknown }, metadat
 
 export function validateOperateRequest(operationId: string, json: string, metadata: OperateMetadata): OperateRequest {
     const operation = metadata.operations.find((entry) => entry.operationId === operationId);
-    if (!operation) throw new Error('Unknown Operate API operation. Run api ls to list operationIds.');
+    assertReadOnlyOperateOperation(operation);
     const input = envelope(json);
     let path = operation.path;
     const pathArguments = Object.fromEntries(parameters(operation, 'path', input.path, metadata));
