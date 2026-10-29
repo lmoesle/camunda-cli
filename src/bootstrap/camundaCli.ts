@@ -25,6 +25,9 @@ import { OperateApiUseCase } from '../application/usecases/operateApiUseCase';
 import { AxiosOperateApiAdapter } from '../adapter/out/axiosOperateApiAdapter';
 import { ConsoleApiResultPresenter } from '../adapter/out/consoleApiResultPresenter';
 import { operateMetadata } from '../adapter/out/operateApiSpec';
+import { MigrationMonitorUseCase } from '../application/usecases/migrationMonitorUseCase';
+import { AxiosMigrationMonitorAdapter } from '../adapter/out/axiosMigrationMonitorAdapter';
+import { ConsoleMigrationMonitorPresenter } from '../adapter/out/consoleMigrationMonitorPresenter';
 
 export interface CamundaCliBootstrapOptions {
     writeLine?: (line: string) => void;
@@ -65,6 +68,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     let initialization: Promise<void> | undefined;
     const initialize = (): Promise<void> => initialization ??= loadProfilesInPort.loadProfiles();
     const program = createCamundaCli({
+        migrationMonitorInPort: new MigrationMonitorUseCase(cache, new AxiosMigrationMonitorAdapter(), new ConsoleMigrationMonitorPresenter(writeLine)),
         operateApiInPort: new OperateApiUseCase(cache, new AxiosOperateApiAdapter(), new ConsoleApiResultPresenter(writeLine), operateMetadata),
         addProfileInPort: new AddProfileUseCase(repository),
         createMigrationBundleInPort: new CreateMigrationBundleUseCase(new LocalMigrationBundleFilesAdapter(), new LocalMigrationPlanFileAdapter()),
@@ -79,7 +83,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        if (_parent === program) diagnosticCommand = ['api', 'incidents', 'incident', 'deploy', 'migrate', 'create-migration-bundle'].includes(command.name());
+        if (_parent === program) diagnosticCommand = ['api', 'incidents', 'incident', 'deploy', 'migrate', 'migration-monitor', 'create-migration-bundle'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {
