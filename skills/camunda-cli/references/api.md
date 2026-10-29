@@ -127,10 +127,4 @@ reviewed operationId/method/path tuples, not all GETs or arbitrary POST searches
 The eight POST searches read data without changing cluster state. OAuth uses POST
 for authentication and remains supported.
 
-The CLI rejects `delete` and unapproved operations before request parsing,
-profile lookup, OAuth, or cluster transport. There is no override flag.
-For write, change, or delete support, direct the user to
-[submit a feature request](https://github.com/lmoesle/camunda-cli/issues/new).
-Do not execute dedicated `deploy`, `migrate`, or `incident retry` commands,
-even with user authorization. Do not bypass the boundary through curl, SDKs,
-other HTTP clients, or alternate commands/tools.
+

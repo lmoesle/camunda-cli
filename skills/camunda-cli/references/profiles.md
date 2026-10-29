@@ -50,7 +50,7 @@ back to `zeebeUrl`. For migration, both roots must address the same cluster.
 | Command | Authentication |
 | --- | --- |
 | `api`, `incidents` | Always require `--client-id`, `--client-secret`, and `--oauth-url`, including on Self-Managed. No unauthenticated, Basic, or cookie mode. |
-| `deploy`, `incident retry`, `migrate` (outside this skill; do not execute) | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
+| `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
 | `api ls`, help/version, `create-migration-bundle` | No cluster connection or profile needed. Bundling still writes a local file. |
 
 Supply all OAuth credential fields together; partial or blank configuration
