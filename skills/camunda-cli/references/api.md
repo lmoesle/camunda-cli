@@ -18,19 +18,8 @@ generated client method names or infer an operation from a URL.
 
 The catalogue supplies inline parameter schemas and body schema references.
 Resolve a reference such as `#/components/schemas/QueryIncident` in the
-document's `components.schemas`. Consult the exact pinned source, not a
-latest-version schema:
+document's `components.schemas`.
 
-- [Pinned upstream OpenAPI YAML](https://raw.githubusercontent.com/camunda/camunda-docs/5f4b195d9beba5c4cc3e9c6d2d4edc3bdbff894a/api/operate/version-8.7/operate-openapi.yaml)
-- [View the pinned document on GitHub](https://github.com/camunda/camunda-docs/blob/5f4b195d9beba5c4cc3e9c6d2d4edc3bdbff894a/api/operate/version-8.7/operate-openapi.yaml)
-- [Repository provenance and regeneration notes](https://github.com/lmoesle/camunda-cli/blob/main/resources/operate-8.7/README.md)
-
-The upstream pin is commit `5f4b195d9beba5c4cc3e9c6d2d4edc3bdbff894a`;
-the document's internal API version is `1.0.0`. A repository checkout also
-contains it at `resources/operate-8.7/operate-openapi.yaml`. After installing
-this skill elsewhere, use the public pinned links above. `api ls` does not
-expand all component schemas. Do not assume the npm package includes YAML
-files or that the CLI can fetch schemas for you.
 
 ## Build the inline request envelope
 
