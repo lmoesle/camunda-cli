@@ -60,6 +60,11 @@ const scenarios: {
         expected: { profile: 'local' }, missingPort: 'MigrationMonitorInPort',
     },
     {
+        name: 'migration-monitor --json', args: ['migration-monitor', '--profile', 'local', '--json'],
+        dependencies: (monitorMigration) => ({ migrationMonitorInPort: { monitorMigration } }),
+        expected: { profile: 'local', json: true }, missingPort: 'MigrationMonitorInPort',
+    },
+    {
         name: 'api', args: ['api', 'byKey_1', '{"path":{"key":1}}', '--profile', 'local'],
         dependencies: (invokeApi) => ({ operateApiInPort: { invokeApi } }),
         expected: { usecase: 'byKey_1', requestJson: '{"path":{"key":1}}', profile: 'local' }, missingPort: 'OperateApiInPort',
