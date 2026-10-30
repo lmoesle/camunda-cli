@@ -1,6 +1,6 @@
 {
   "name": "@lmoesle/camunda-cli",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "CLI for interacting with Camunda 8",
   "repository": {
     "type": "git",
