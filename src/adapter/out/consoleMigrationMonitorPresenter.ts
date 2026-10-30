@@ -4,7 +4,11 @@ import { MigrationMonitorRow } from '../../domain/migrationMonitor';
 export class ConsoleMigrationMonitorPresenter implements ShowMigrationMonitorOutPort {
     constructor(private readonly writeLine: (line: string) => void = console.log) {}
 
-    showMigrationMonitor(report: MigrationMonitorRow[]): void {
+    showMigrationMonitor(report: MigrationMonitorRow[], json = false): void {
+        if (json) {
+            this.writeLine(JSON.stringify(report, null, 2));
+            return;
+        }
         const activeInstances = report.reduce((sum, row) => sum + row.activeInstances, 0);
         const outdatedInstances = report.reduce((sum, row) => sum + row.outdatedVersions.reduce((count, entry) => count + entry.activeInstances, 0), 0);
         const summary = `Total (displayed processes): Active instances: ${activeInstances} | Number of outdated instances: ${outdatedInstances}`;

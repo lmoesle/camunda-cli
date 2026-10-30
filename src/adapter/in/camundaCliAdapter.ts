@@ -48,6 +48,7 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
     program.command('migration-monitor')
         .description('Report ACTIVE instances on outdated deployed process versions (read-only, Camunda 8.7)')
         .requiredOption('--profile <name>', 'stored Operate OAuth profile name (required)')
+        .option('--json', 'print a JSON array instead of a table')
         .action(async (options: MigrationMonitorCommand) => {
             if (!dependencies.migrationMonitorInPort) throw new Error('The migration-monitor command requires a MigrationMonitorInPort dependency.');
             await dependencies.migrationMonitorInPort.monitorMigration(options);

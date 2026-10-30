@@ -58,6 +58,40 @@ describe('migration monitor report', () => {
         expect(migrationMonitorReport([latest], [])).toEqual([]);
     });
 
+    test('JSON preserves per-version counts, tenant isolation and original text without table prose', () => {
+        const bpmnProcessId = 'orders\n"\\\u202e';
+        const processName = ' Orders\t\u001b[31m ';
+        const tenantId = 'tenant\r"\\';
+        const first = definition('1', 1, bpmnProcessId, tenantId);
+        const second = definition('2', 2, bpmnProcessId, tenantId);
+        const latest = { ...definition('3', 3, bpmnProcessId, tenantId), name: processName };
+        const other = definition('4', 1, bpmnProcessId, 'other');
+        const otherLatest = definition('5', 2, bpmnProcessId, 'other');
+        const unspecified = definition('6', 1, bpmnProcessId);
+        const unspecifiedLatest = definition('7', 2, bpmnProcessId);
+        const current = definition('8', 1, 'up-to-date');
+        const sources = [first, first, first, second, second, latest, latest, latest, latest, other, unspecified, current];
+        const rows = migrationMonitorReport([latest, second, first, other, otherLatest, unspecified, unspecifiedLatest, current],
+            sources.map((source, index) => instance(String(100 + index), source)));
+        const write = jest.fn();
+        new ConsoleMigrationMonitorPresenter(write).showMigrationMonitor(rows, true);
+        expect(write.mock.calls).toEqual([[JSON.stringify(rows, null, 2)]]);
+        expect(JSON.parse(write.mock.calls[0][0])).toEqual([
+            { processName: bpmnProcessId, bpmnProcessId, latestVersion: 2, activeInstances: 1,
+                outdatedVersions: [{ version: 1, activeInstances: 1 }] },
+            { processName: bpmnProcessId, bpmnProcessId, tenantId: 'other', latestVersion: 2, activeInstances: 1,
+                outdatedVersions: [{ version: 1, activeInstances: 1 }] },
+            { processName, bpmnProcessId, tenantId, latestVersion: 3, activeInstances: 9,
+                outdatedVersions: [{ version: 1, activeInstances: 3 }, { version: 2, activeInstances: 2 }] },
+        ]);
+    });
+
+    test('empty JSON is exactly an array with no summary or prose', () => {
+        const write = jest.fn();
+        new ConsoleMigrationMonitorPresenter(write).showMigrationMonitor([], true);
+        expect(write.mock.calls).toEqual([['[]']]);
+    });
+
     test.each(['missing', 'tenant', 'version', 'id', 'duplicate-instance', 'duplicate-definition', 'duplicate-version'])('fails safely on %s', (problem) => {
         const source = definition('1', 1);
         const active = instance('3', source);
@@ -214,42 +248,60 @@ describe('profile, CLI and runtime composition', () => {
         }
     });
 
-    test('forwards Operate-only OAuth settings, trims selected name and never requires gateway', async () => {
+    test.each([undefined, false, true])('forwards JSON mode %j and Operate-only OAuth settings, trims selected name and never requires gateway', async (json) => {
         const getProfile = jest.fn(() => ({ ...profile, baseUrl: '', operateAudience: 'override' }));
         const discover = jest.fn().mockResolvedValue({ definitions: [], instances: [] });
         const showMigrationMonitor = jest.fn();
-        await new MigrationMonitorUseCase({ getProfile }, { discover }, { showMigrationMonitor }).monitorMigration({ profile: ' selected ' });
+        await new MigrationMonitorUseCase({ getProfile }, { discover }, { showMigrationMonitor }).monitorMigration({ profile: ' selected ', json });
         expect(getProfile).toHaveBeenCalledWith('selected');
         expect(discover).toHaveBeenCalledWith({ ...connection, audience: 'override' });
-        expect(showMigrationMonitor).toHaveBeenCalledWith([]);
+        expect(showMigrationMonitor).toHaveBeenCalledWith([], json ?? false);
     });
 
-    test('missing required --profile is a CLI error', async () => {
+    test.each([{ flags: [] }, { flags: ['--json'] }])('missing required --profile is a CLI error with flags $flags', async ({ flags }) => {
         const cli = createCamundaCli({}).exitOverride();
         cli.commands.forEach((command) => command.exitOverride().configureOutput({ writeErr: () => undefined }));
-        await expect(cli.parseAsync(['migration-monitor'], { from: 'user' })).rejects.toMatchObject({ code: 'commander.missingMandatoryOptionValue' });
+        expect(cli.commands.find((command) => command.name() === 'migration-monitor')!.helpInformation()).toContain('--json');
+        await expect(cli.parseAsync(['migration-monitor', ...flags], { from: 'user' })).rejects.toMatchObject({ code: 'commander.missingMandatoryOptionValue' });
     });
 
-    test('default runtime selects stored profile, produces only report on stdout, routes startup notices to diagnostics', async () => {
+    test.each([false, true])('default runtime with JSON %j selects stored profile, produces only report on stdout, routes startup notices to diagnostics', async (json) => {
         const home = await mkdtemp(path.join(tmpdir(), 'migration-monitor-'));
+        const args = ['migration-monitor', '--profile', 'selected', ...(json ? ['--json'] : [])];
         try {
             const output = jest.fn();
             const diagnostic = jest.fn();
             const discover = jest.spyOn(AxiosMigrationMonitorAdapter.prototype, 'discover').mockResolvedValue({ definitions: [], instances: [] });
-            await expect(runDefaultCamundaCli(['node', 'cli', 'migration-monitor', '--profile', 'selected'],
+            await expect(runDefaultCamundaCli(['node', 'cli', ...args],
                 { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toThrow('does not exist');
             expect(output).not.toHaveBeenCalled();
             expect(diagnostic).toHaveBeenCalledWith('Please add a profile with the add profile command.');
             await mkdir(path.join(home, '.lmoesle-camunda-cli'), { recursive: true });
             await writeFile(path.join(home, '.lmoesle-camunda-cli/profiles.json'), JSON.stringify({ profiles: [profile] }));
             await createDefaultCamundaCli({ homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic })
-                .parseAsync(['migration-monitor', '--profile', 'selected'], { from: 'user' });
+                .parseAsync(args, { from: 'user' });
             expect(discover).toHaveBeenCalledWith(connection);
-            expect(output.mock.calls).toEqual([['No active process instances on outdated versions found.\nTotal (displayed processes): Active instances: 0 | Number of outdated instances: 0']]);
+            expect(output.mock.calls).toEqual([[json ? '[]' : 'No active process instances on outdated versions found.\nTotal (displayed processes): Active instances: 0 | Number of outdated instances: 0']]);
+            output.mockClear();
+            const first = definition('1', 1);
+            const latest = definition('2', 2);
+            discover.mockResolvedValue({ definitions: [first, latest], instances: [instance('3', first), instance('4', latest)] });
+            await runDefaultCamundaCli(['node', 'cli', ...args], { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic });
+            expect(output).toHaveBeenCalledTimes(1);
+            if (json) {
+                expect(JSON.parse(output.mock.calls[0][0])).toEqual([{ processName: 'orders', bpmnProcessId: 'orders', latestVersion: 2,
+                    activeInstances: 2, outdatedVersions: [{ version: 1, activeInstances: 1 }] }]);
+            } else {
+                expect(output.mock.calls[0][0]).toContain('Total (displayed processes): Active instances: 2 | Number of outdated instances: 1');
+            }
             output.mockClear();
             discover.mockResolvedValue({ definitions: [], instances: [instance('3', definition('1', 1))] });
-            await expect(runDefaultCamundaCli(['node', 'cli', 'migration-monitor', '--profile', 'selected'],
+            await expect(runDefaultCamundaCli(['node', 'cli', ...args],
                 { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toThrow(/retry/i);
+            expect(output).not.toHaveBeenCalled();
+            discover.mockRejectedValue(new Error('Discovery failed'));
+            await expect(runDefaultCamundaCli(['node', 'cli', ...args],
+                { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toThrow('Discovery failed');
             expect(output).not.toHaveBeenCalled();
         } finally { await rm(home, { recursive: true, force: true }); }
     });

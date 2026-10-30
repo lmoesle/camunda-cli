@@ -116,11 +116,38 @@ Deployment stops on the first failure; earlier successes remain committed. Check
 ### migration-monitor
 
 ```sh
-camunda-cli migration-monitor --profile <name>
+camunda-cli migration-monitor --profile <name> [--json]
 ```
 
 Run a one-shot, read-only Camunda report of processes with ACTIVE instances on
 versions older than their latest visible deployed numeric version.
+
+By default, print a table and summary. Add `--json` to print only a JSON array,
+with no table or summary (`[]` when no processes have outdated ACTIVE instances).
+Each row represents one process and tenant; `tenantId` is omitted when unspecified.
+`activeInstances` counts ACTIVE instances across all versions, including the latest.
+`outdatedVersions` lists only older versions with ACTIVE instances, sorted numerically,
+with an ACTIVE instance count for each version. For example, four latest-version
+instances contribute to the total of nine below, but not to `outdatedVersions`:
+
+```json
+[
+  {
+    "processName": "Orders",
+    "bpmnProcessId": "orders",
+    "tenantId": "retail",
+    "latestVersion": 3,
+    "activeInstances": 9,
+    "outdatedVersions": [
+      { "version": 1, "activeInstances": 3 },
+      { "version": 2, "activeInstances": 2 }
+    ]
+  }
+]
+```
+
+The flag changes only presentation; discovery remains read-only and includes
+incident-bearing ACTIVE instances.
 
 ### migrate
 
