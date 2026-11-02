@@ -11,6 +11,7 @@ export interface MigrationPlanEntry {
 export interface MigrationDefinition { key: string; bpmnProcessId: string; version: number; tenantId?: string }
 export interface MigrationInstance { key: string; processDefinitionKey: string; state: 'ACTIVE'; tenantId?: string }
 export interface MigrationConnection {
+    noAuth?: true;
     gatewayUrl: string;
     operateUrl: string;
     oauth?: { clientId: string; clientSecret: string; oAuthUrl: string; audience?: string; operateAudience?: string };
@@ -101,6 +102,7 @@ function version(value: unknown): number | undefined {
 export function migrationConnection(profile: Profile): MigrationConnection {
     const gatewayUrl = endpoint(profile.baseUrl, 'baseUrl').replace(/\/v[12]$/, '') + '/v2';
     const operateUrl = endpoint(profile.operateUrl, 'operateUrl').replace(/\/v[12]$/, '') + '/v1';
+    if (profile.noAuth === true) return { gatewayUrl, operateUrl, noAuth: true };
     const saas = [gatewayUrl, operateUrl].some((url) => /\.(zeebe|operate)\.camunda\.io$/.test(new URL(url).hostname)) ||
         (profile.oAuthUrl !== undefined && new URL(endpoint(profile.oAuthUrl, 'oAuthUrl')).hostname === 'login.cloud.camunda.io');
     const authFields = ['clientId', 'clientSecret', 'oAuthUrl', 'audience', 'operateAudience'] as const;

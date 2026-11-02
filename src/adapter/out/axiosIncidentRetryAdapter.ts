@@ -2,13 +2,15 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { IncidentRetryOutPort, IncidentRetrySession } from '../../application/ports/out/incidentRetryOutPort';
 import { IncidentRetryFailure } from '../../domain/incidentRetry';
 import { RestConnection } from '../../domain/restConnection';
+import { anonymousHttp } from './anonymousHttp';
 
 export class AxiosIncidentRetryAdapter implements IncidentRetryOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async connect(connection: RestConnection): Promise<IncidentRetrySession> {
+        const http = connection.noAuth === true ? anonymousHttp(this.http) : this.http;
         const headers: Record<string, string> = {};
-        if (connection.oauth) {
+        if (connection.noAuth !== true && connection.oauth) {
             const { oAuthUrl, clientId, clientSecret, audience } = connection.oauth;
             const form = new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret });
             if (audience !== undefined) form.set('audience', audience);
@@ -25,19 +27,19 @@ export class AxiosIncidentRetryAdapter implements IncidentRetryOutPort {
         return {
             resetJobRetries: async (jobKey) => {
                 await this.request({ method: 'PATCH', url: `${connection.restUrl}/jobs/${jobKey}`,
-                    data: { changeset: { retries: 3 } }, headers }, 'Job retries update');
+                    data: { changeset: { retries: 3 } }, headers }, 'Job retries update', http);
             },
             resolveIncident: async (incidentKey) => {
                 // Override Axios's form media type fallback for bodyless POST requests.
                 await this.request({ method: 'POST', url: `${connection.restUrl}/incidents/${incidentKey}/resolution`,
-                    headers: { ...headers, 'Content-Type': 'application/json' } }, 'Incident resolution');
+                    headers: { ...headers, 'Content-Type': 'application/json' } }, 'Incident resolution', http);
             },
         };
     }
 
-    private async request(config: AxiosRequestConfig, operation: string): Promise<unknown> {
+    private async request(config: AxiosRequestConfig, operation: string, http = this.http): Promise<unknown> {
         try {
-            const response = await this.http.request({ ...config, timeout: 30000, maxRedirects: 0,
+            const response = await http.request({ ...config, timeout: 30000, maxRedirects: 0,
                 responseType: 'text', transformResponse: [(value: unknown) => value] });
             return response.data;
         } catch (error) {

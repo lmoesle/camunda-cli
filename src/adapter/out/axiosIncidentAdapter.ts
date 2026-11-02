@@ -3,21 +3,27 @@ import { isLosslessNumber, parse, stringify } from 'lossless-json';
 import { IncidentConnection, IncidentSearchOutPort } from '../../application/ports/out/incidentSearchOutPort';
 import { Incident } from '../../domain/incident';
 import { dispatchOperateRequest } from './operateApiDispatch';
+import { anonymousHttp } from './anonymousHttp';
 
 export class AxiosIncidentAdapter implements IncidentSearchOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async searchActiveIncidents(connection: IncidentConnection): Promise<Incident[]> {
-        const form = new URLSearchParams({
-            grant_type: 'client_credentials', client_id: connection.clientId, client_secret: connection.clientSecret,
-        });
-        if (connection.audience !== undefined) form.set('audience', connection.audience);
-        const auth = await this.request(connection.oAuthUrl, form.toString(), {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        }, 'OAuth authentication');
-        const token = record(auth)?.access_token;
-        if (typeof token !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(token)) {
-            throw new Error('OAuth authentication returned an invalid access_token.');
+        const http = connection.noAuth === true ? anonymousHttp(this.http) : this.http;
+        let token: string | undefined;
+        if (connection.noAuth !== true) {
+            const form = new URLSearchParams({
+                grant_type: 'client_credentials', client_id: connection.clientId, client_secret: connection.clientSecret,
+            });
+            if (connection.audience !== undefined) form.set('audience', connection.audience);
+            const auth = await this.request(connection.oAuthUrl, form.toString(), {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }, 'OAuth authentication');
+            const accessToken = record(auth)?.access_token;
+            if (typeof accessToken !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(accessToken)) {
+                throw new Error('OAuth authentication returned an invalid access_token.');
+            }
+            token = accessToken;
         }
         const basePath = connection.operateUrl.replace(/\/v1$/, '');
         const incidents: Incident[] = [];
@@ -28,7 +34,7 @@ export class AxiosIncidentAdapter implements IncidentSearchOutPort {
                 filter: { state: 'ACTIVE' }, size: 100, sort: [{ field: 'key', order: 'ASC' }],
                 ...(searchAfter ? { searchAfter } : {}),
             })!;
-            const page = record(await this.request(() => dispatchOperateRequest(this.http, basePath, token,
+            const page = record(await this.request(() => dispatchOperateRequest(http, basePath, token,
                 { operationId: 'search_3', body }), body, {}, 'Operate incident search'));
             if (!page || !Array.isArray(page.items)) throw malformed();
             if (page.items.length === 0) return incidents;

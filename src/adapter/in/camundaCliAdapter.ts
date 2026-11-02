@@ -38,7 +38,7 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .description('Call reviewed read-only Operate 8.7 operations; api ls lists supported operations offline')
         .argument('<usecase>', 'exact OpenAPI operationId, or ls')
         .argument('[request-json]', 'inline JSON object with path, query, and body sections')
-        .option('--profile <name>', 'stored OAuth profile (required except for ls)')
+        .option('--profile <name>', 'stored profile (required except for ls)')
         .addHelpText('after', '\nExamples:\n  api ls\n  api byKey_1 \'{"path":{"key":9007199254740993}}\' --profile local\n  api search_3 \'{"body":{"filter":{"state":"ACTIVE"}}}\' --profile local\n\nOnly read-only requests are supported, including POST searches. Request JSON cannot override endpoints or authentication. For write, change, or delete support, submit a feature request: https://github.com/lmoesle/camunda-cli/issues/new\n')
         .action(async (usecase: string, requestJson: string | undefined, options: { profile?: string }) => {
             if (!dependencies.operateApiInPort) throw new Error('The api command requires an OperateApiInPort dependency.');
@@ -47,7 +47,7 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
 
     program.command('migration-monitor')
         .description('Report ACTIVE instances on outdated deployed process versions (read-only, Camunda 8.7)')
-        .requiredOption('--profile <name>', 'stored Operate OAuth profile name (required)')
+        .requiredOption('--profile <name>', 'stored Operate profile name (required)')
         .option('--json', 'print a JSON array instead of a table')
         .action(async (options: MigrationMonitorCommand) => {
             if (!dependencies.migrationMonitorInPort) throw new Error('The migration-monitor command requires a MigrationMonitorInPort dependency.');
@@ -118,12 +118,13 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .option('--oauth-url <url>', 'OAuth URL')
         .option('--operate-url <url>', 'Operate URL')
         .option('--zeebe-url <url>', 'Zeebe URL')
-        .action(async (options: Omit<AddProfileCommand, 'oAuthUrl'> & { oauthUrl?: string }) => {
+        .option('--no-auth', 'disable authentication for deliberately unauthenticated services')
+        .action(async (options: Omit<AddProfileCommand, 'oAuthUrl'> & { oauthUrl?: string; auth?: boolean }) => {
             if (!dependencies.addProfileInPort) {
                 throw new Error('The add profile command requires an AddProfileInPort dependency.');
             }
-            const { oauthUrl, ...profile } = options;
-            await dependencies.addProfileInPort.addProfile({ ...profile, oAuthUrl: oauthUrl });
+            const { oauthUrl, auth, ...profile } = options;
+            await dependencies.addProfileInPort.addProfile({ ...profile, oAuthUrl: oauthUrl, ...(auth === false ? { noAuth: true } : {}) });
         });
 
     return program;

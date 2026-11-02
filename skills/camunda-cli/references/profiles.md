@@ -37,8 +37,9 @@ or authentication.
 | `--oauth-url <url>` | Client-credentials OAuth token endpoint. |
 | `--audience <audience>` | Gateway audience and legacy Operate fallback. |
 | `--operate-audience <audience>` | Override the audience for Operate. |
-| `--operate-url <url>` | Operate root for `api`, `incidents`, and `migrate`. |
+| `--operate-url <url>` | Operate root for `api`, `incidents`, `migration-monitor`, and `migrate`. |
 | `--zeebe-url <url>` | Stored only; current commands do not use it. |
+| `--no-auth` | Store the JSON boolean `noAuth: true` to disable authentication. |
 
 Use HTTP(S) service roots with any required SaaS cluster ID or reverse-proxy
 prefix. Do not embed credentials, query parameters, or fragments. Gateway
@@ -49,11 +50,11 @@ back to `zeebeUrl`. For migration, both roots must address the same cluster.
 
 | Command | Authentication |
 | --- | --- |
-| `api`, `incidents` | Always require `--client-id`, `--client-secret`, and `--oauth-url`, including on Self-Managed. No unauthenticated, Basic, or cookie mode. |
+| `api`, `incidents`, `migration-monitor` | Require `--client-id`, `--client-secret`, and `--oauth-url` unless the profile sets `noAuth: true`. No Basic or cookie mode. |
 | `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
 | `api ls`, help/version, `create-migration-bundle` | No cluster connection or profile needed. Bundling still writes a local file. |
 
-Supply all OAuth credential fields together; partial or blank configuration
+When `noAuth` is false or omitted, supply all OAuth credential fields together; partial or blank configuration
 fails when used. SaaS gateway commands require an audience, normally
 `zeebe.camunda.io`; SaaS Operate requires one, normally `operate.camunda.io`.
 For a shared SaaS migration profile, configure **both** `--audience` and
@@ -63,3 +64,29 @@ Operate uses `operateAudience` when present, otherwise `audience`. A blank
 override fails; it does not trigger fallback. Self-Managed OAuth can omit
 audiences. Never substitute unsupported Basic authentication or an existing
 browser session when OAuth configuration is missing.
+
+## Deliberately unauthenticated services
+
+Use `noAuth: true` only for services intentionally configured without authentication,
+**not default C8Run**. Literal `true` overrides and ignores retained OAuth settings,
+even partial or malformed ones. All six cluster command families skip OAuth requests
+and send no authentication headers. Required service URL validation still applies.
+`noAuth: false` or an omitted field preserves existing behavior, including implicit
+anonymous deploy, retry, and Self-Managed migrate with no OAuth fields.
+
+Example configuration for the user's trusted local setup:
+
+```sh
+camunda-cli add profile --name local --base-url http://localhost:8080 --operate-url http://localhost:8081 --zeebe-url http://localhost:26500 --no-auth
+camunda-cli incidents --profile local
+```
+
+Equivalent entry in the `profiles` array:
+
+```json
+{"name":"local","baseUrl":"http://localhost:8080","operateUrl":"http://localhost:8081","zeebeUrl":"http://localhost:26500","noAuth":true}
+```
+
+Use a JSON boolean, not `"true"`. Select the profile explicitly with `--profile local`.
+`zeebeUrl` stays stored-only; no endpoint defaults or fallbacks apply. This mode does
+not relax the agent's read-only command restrictions.
