@@ -27,6 +27,7 @@ describe('default runtime profile initialization', () => {
 
     beforeEach(async () => {
         home = await mkdtemp(path.join(tmpdir(), 'camunda-startup-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
         directory = path.join(home, '.lmoesle-camunda-cli');
         filePath = path.join(directory, 'profiles.json');
         output = jest.fn();
@@ -104,7 +105,7 @@ describe('default runtime profile initialization', () => {
         await store({ profiles });
         const otherHome = path.join(home, 'other');
         await mkdir(otherHome);
-        const other = createDefaultCamundaCli({ homeDirectory: otherHome, writeLine: () => undefined });
+        const other = createDefaultCamundaCli({ homeDirectory: otherHome, workingDirectory: otherHome, writeLine: () => undefined });
         await Promise.all([program.initialize(), other.initialize()]);
         expect(program.profiles.getProfiles()).toEqual(profiles);
         expect(other.profiles.getProfiles()).toEqual([]);

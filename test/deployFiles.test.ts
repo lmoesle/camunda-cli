@@ -247,6 +247,7 @@ describe('real Axios multipart requests and cached CLI runtime', () => {
     let redirect: boolean;
     beforeEach(async () => {
         home = await fs.mkdtemp(path.join(tmpdir(), 'cli-deploy-http-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
         requests = [];
         failAt = undefined;
         redirect = false;

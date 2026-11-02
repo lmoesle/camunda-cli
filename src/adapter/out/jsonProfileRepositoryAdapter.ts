@@ -17,10 +17,12 @@ interface ProfileDocument {
 export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, LoadProfilesOutPort {
     private directory: string;
     private filePath: string;
+    private localDirectory: string;
 
-    constructor(homeDirectory: string = homedir()) {
+    constructor(homeDirectory: string = homedir(), workingDirectory: string = process.cwd()) {
         this.directory = path.join(homeDirectory, '.lmoesle-camunda-cli');
         this.filePath = path.join(this.directory, 'profiles.json');
+        this.localDirectory = path.join(workingDirectory, '.lmoesle-camunda-cli');
     }
 
     async listProfiles(): Promise<Profile[]> {
@@ -29,6 +31,12 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, L
 
     async loadProfiles(): Promise<Profile[] | undefined> {
         return this.withSafeErrors(async () => {
+            // Local selection affects reads only; addProfile always manages home storage.
+            await this.checkDirectory(this.localDirectory);
+            const local = await this.readDocument(path.join(this.localDirectory, 'profiles.json'));
+            if (local !== undefined) {
+                return local.profiles;
+            }
             await this.checkDirectory();
             return (await this.readDocument())?.profiles;
         });
@@ -75,8 +83,8 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, L
         });
     }
 
-    private async checkDirectory(): Promise<void> {
-        const stat = await readIfPresent(() => lstat(this.directory));
+    private async checkDirectory(directory: string = this.directory): Promise<void> {
+        const stat = await readIfPresent(() => lstat(directory));
         if (!stat) {
             return;
         }
@@ -85,8 +93,8 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, L
         }
     }
 
-    private async checkFile(): Promise<void> {
-        const stat = await readIfPresent(() => lstat(this.filePath));
+    private async checkFile(filePath: string = this.filePath): Promise<void> {
+        const stat = await readIfPresent(() => lstat(filePath));
         if (!stat) {
             return;
         }
@@ -95,17 +103,17 @@ export class JsonProfileRepositoryAdapter implements ProfileRepositoryOutPort, L
         }
     }
 
-    private async readDocument(): Promise<ProfileDocument | undefined> {
-        await this.checkFile();
-        const content = await readIfPresent(() => this.readContent());
+    private async readDocument(filePath: string = this.filePath): Promise<ProfileDocument | undefined> {
+        await this.checkFile(filePath);
+        const content = await readIfPresent(() => this.readContent(filePath));
         if (content === undefined) {
             return undefined;
         }
         return parseDocument(content);
     }
 
-    private async readContent(): Promise<string> {
-        const file = await open(this.filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    private async readContent(filePath: string): Promise<string> {
+        const file = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
         try {
             if (!(await file.stat()).isFile()) {
                 throw new ProfileStorageError('Profile storage must be a regular file.');

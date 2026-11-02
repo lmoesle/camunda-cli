@@ -379,7 +379,10 @@ describe('safe lossless HTTP transport and presentation', () => {
 
 describe('api CLI integration', () => {
     let home: string;
-    beforeEach(async () => { home = await mkdtemp(path.join(tmpdir(), 'cli-api-')); });
+    beforeEach(async () => {
+        home = await mkdtemp(path.join(tmpdir(), 'cli-api-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
+    });
     afterEach(async () => { await rm(home, { recursive: true, force: true }); });
 
     test('dispatches api ls and documents request shape and read-only behavior in help', async () => {

@@ -8,9 +8,19 @@ requests. `--profile` is command-specific; there is no default profile or
 listing, editing, or deletion command. Do not invent one or dump the profile
 store to discover names.
 
-Profiles live in `~/.lmoesle-camunda-cli/profiles.json` and store secrets in
-**plaintext**. Protect the file, directory, and backups. Never print, attach,
-commit, or paste the store into a conversation or log. Avoid exposing tokens
+Profiles default to `~/.lmoesle-camunda-cli/profiles.json`. A
+`.lmoesle-camunda-cli/profiles.json` in the invocation's current working
+directory overrides the entire home document. The CLI never searches ancestor
+directories, merges documents, or falls back to home for a missing profile name.
+`{ "profiles": [] }` selects an empty set of profiles. Only missing local storage
+falls back to home; malformed, unreadable, or unsafe local storage fails instead.
+
+`add profile` always appends to home storage and checks duplicates only there.
+New home profiles remain hidden while the local override is active.
+
+Both stores keep secrets in **plaintext**. Protect the files, directories, and
+backups, and keep project profile configuration out of version control. Never
+print, attach, commit, or paste the store into a conversation or log. Avoid exposing tokens
 or sensitive API results as well. Ask users to configure credentials through
 their own trusted local workflow; secret command arguments can appear in
 shell history and process listings. Environment-variable substitution does

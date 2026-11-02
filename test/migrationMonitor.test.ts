@@ -267,6 +267,7 @@ describe('profile, CLI and runtime composition', () => {
 
     test.each([false, true])('default runtime with JSON %j selects stored profile, produces only report on stdout, routes startup notices to diagnostics', async (json) => {
         const home = await mkdtemp(path.join(tmpdir(), 'migration-monitor-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
         const args = ['migration-monitor', '--profile', 'selected', ...(json ? ['--json'] : [])];
         try {
             const output = jest.fn();

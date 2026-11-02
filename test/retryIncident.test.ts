@@ -222,6 +222,7 @@ describe('loopback wire and cached default runtime', () => {
     let redirect: boolean;
     beforeEach(async () => {
         home = await fs.mkdtemp(path.join(tmpdir(), 'cli-retry-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
         requests = [];
         redirect = false;
         server = createServer((req, res) => {

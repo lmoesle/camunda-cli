@@ -40,7 +40,9 @@ camunda-cli add profile --name <name> --base-url <url> [options]
 | `--zeebe-url <url>` | Optional stored Zeebe URL; current commands do not use it. |
 
 Creating a profile does not test connectivity or authentication.
-Profiles live in `~/.lmoesle-camunda-cli/profiles.json`. **Secrets are unencrypted**, and secret arguments can appear in shell history and process listings. Protect the file and its backups.
+Profiles default to `~/.lmoesle-camunda-cli/profiles.json`. If `.lmoesle-camunda-cli/profiles.json` exists in the invocation's current working directory, the CLI reads only that document instead. It never searches ancestor directories or merges profiles with home storage; `{ "profiles": [] }` overrides home with no profiles. Missing local storage falls back to home, but malformed, unreadable, or unsafe local storage fails instead of falling back.
+
+`add profile` always appends to home storage and checks duplicates there, even with a local override. Newly added home profiles remain hidden while the local override is active. **Secrets are unencrypted**, and secret arguments can appear in shell history and process listings. Protect both profile files, their directories, and backups; keep project profile configuration out of version control.
 
 For cluster commands, use HTTP(S) service roots including any SaaS cluster ID or reverse-proxy path prefix, without embedded credentials, query, or fragment.
 Cluster commands do not fall back to `--zeebe-url` or environment settings.
