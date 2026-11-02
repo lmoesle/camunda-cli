@@ -29,7 +29,7 @@ describe('migration and incident retry coexist', () => {
             ]) {
                 const writeLine = jest.fn();
                 const writeDiagnostic = jest.fn();
-                const options = { homeDirectory: home, writeLine, writeDiagnostic };
+                const options = { homeDirectory: home, workingDirectory: home, writeLine, writeDiagnostic };
                 await expect(mode === 'runner' ? runDefaultCamundaCli(['node', 'cli', ...args], options) :
                     createDefaultCamundaCli(options).parseAsync(args, { from: 'user' })).rejects.toThrow('does not exist');
                 expect(writeLine).not.toHaveBeenCalled();

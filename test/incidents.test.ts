@@ -284,7 +284,10 @@ describe('incident presentation and command', () => {
 
 describe('default incidents runtime', () => {
     let home: string;
-    beforeEach(async () => { home = await mkdtemp(path.join(tmpdir(), 'camunda-incidents-')); });
+    beforeEach(async () => {
+        home = await mkdtemp(path.join(tmpdir(), 'camunda-incidents-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
+    });
     afterEach(async () => {
         jest.restoreAllMocks();
         await rm(home, { recursive: true, force: true });

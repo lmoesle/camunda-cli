@@ -43,7 +43,7 @@ describe('create migration bundle', () => {
         await planFile('a.json', [entry('v001'), entry('2')]);
         await fs.writeFile(path.join(source, 'ignored.txt'), 'bad input');
         await fs.writeFile(path.join(source, 'ignored.JSON'), 'bad input');
-        const cli = createDefaultCamundaCli({ homeDirectory: path.join(directory, 'home'), writeLine: jest.fn(), writeDiagnostic: jest.fn() });
+        const cli = createDefaultCamundaCli({ homeDirectory: path.join(directory, 'home'), workingDirectory: directory, writeLine: jest.fn(), writeDiagnostic: jest.fn() });
         const argv = ['create-migration-bundle', '--sourceDir', path.relative(process.cwd(), source)];
         await cli.parseAsync(argv, { from: 'user' });
         const contents = await fs.readFile(target, 'utf8');
@@ -221,7 +221,7 @@ describe('create migration bundle', () => {
         const writeLine = jest.fn();
         const writeDiagnostic = jest.fn();
         await runDefaultCamundaCli(['node', 'camunda-cli', 'create-migration-bundle', '--sourceDir', source], {
-            homeDirectory: path.join(directory, 'empty-home'), writeLine, writeDiagnostic,
+            homeDirectory: path.join(directory, 'empty-home'), workingDirectory: directory, writeLine, writeDiagnostic,
         });
         expect(writeLine).not.toHaveBeenCalled();
         expect(writeDiagnostic).toHaveBeenCalledTimes(1);

@@ -170,7 +170,7 @@ describe('migration plan JSON or file input', () => {
             searchActiveInstances: async () => [], migrate: jest.fn(),
         });
         const output = jest.fn();
-        const cli = createDefaultCamundaCli({ homeDirectory: directory, writeLine: output });
+        const cli = createDefaultCamundaCli({ homeDirectory: directory, workingDirectory: directory, writeLine: output });
         const argv = ['migrate', '--profile', 'selected', '--migrationPlan', filename];
         await cli.parseAsync(argv, { from: 'user' });
         expect(connect).toHaveBeenCalledTimes(1);

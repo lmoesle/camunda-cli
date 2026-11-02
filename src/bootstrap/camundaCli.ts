@@ -34,6 +34,7 @@ export interface CamundaCliBootstrapOptions {
     writeDiagnostic?: (line: string) => void;
     version?: string;
     homeDirectory?: string;
+    workingDirectory?: string;
 }
 
 export interface DefaultCamundaCli extends Command {
@@ -62,7 +63,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
         deferred = false;
         for (const line of notices.splice(0)) emitNotice(line);
     };
-    const repository = new JsonProfileRepositoryAdapter(options.homeDirectory);
+    const repository = new JsonProfileRepositoryAdapter(options.homeDirectory, options.workingDirectory);
     const cache = new ProfileCache();
     const loadProfilesInPort = new LoadProfilesUseCase(repository, cache, new ConsoleProfileNoticePresenter(emitNotice));
     let initialization: Promise<void> | undefined;

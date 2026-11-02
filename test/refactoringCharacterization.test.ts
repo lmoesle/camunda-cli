@@ -30,6 +30,7 @@ describe('persisted profile validation and safe reading', () => {
 
     beforeEach(async () => {
         home = await mkdtemp(path.join(tmpdir(), 'camunda-characterization-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
         const directory = path.join(home, '.lmoesle-camunda-cli');
         await mkdir(directory);
         filePath = path.join(directory, 'profiles.json');

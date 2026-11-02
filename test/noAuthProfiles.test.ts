@@ -25,11 +25,11 @@ describe('explicit anonymous profile configuration', () => {
     test.each([true, false, undefined])('roundtrips noAuth=%s through creation, storage, startup and snapshots', async (noAuth) => {
         const input = { ...minimal, ...(noAuth === undefined ? {} : { noAuth }) };
         expect(createProfile(input)).toEqual(input);
-        const repository = new JsonProfileRepositoryAdapter(home);
+        const repository = new JsonProfileRepositoryAdapter(home, home);
         await repository.addProfile(input);
         const stored = JSON.parse(await readFile(path.join(home, '.lmoesle-camunda-cli/profiles.json'), 'utf8'));
         expect(stored.profiles).toEqual([input]);
-        const program = createDefaultCamundaCli({ homeDirectory: home, writeLine: jest.fn() });
+        const program = createDefaultCamundaCli({ homeDirectory: home, workingDirectory: home, writeLine: jest.fn() });
         await program.initialize();
         expect(program.profiles.getProfile('local')).toEqual(input);
         const snapshot = program.profiles.getProfile('local')!;
@@ -42,7 +42,18 @@ describe('explicit anonymous profile configuration', () => {
         const directory = path.join(home, '.lmoesle-camunda-cli');
         await mkdir(directory);
         await writeFile(path.join(directory, 'profiles.json'), JSON.stringify({ profiles: [{ ...minimal, noAuth: value }] }));
-        await expect(new JsonProfileRepositoryAdapter(home).listProfiles()).rejects.toThrow();
+        await expect(new JsonProfileRepositoryAdapter(home, home).listProfiles()).rejects.toThrow();
+    });
+
+    test.each(['true', 1, null, {}, []])('invalid local noAuth %j fails without falling back to authenticated home', async (noAuth) => {
+        await new JsonProfileRepositoryAdapter(home, home).addProfile({ ...minimal, noAuth: false });
+        const project = path.join(home, 'project');
+        const directory = path.join(project, '.lmoesle-camunda-cli');
+        await mkdir(directory, { recursive: true });
+        await writeFile(path.join(directory, 'profiles.json'), JSON.stringify({ profiles: [{ ...minimal, noAuth }] }));
+        const program = createDefaultCamundaCli({ homeDirectory: home, workingDirectory: project, writeLine: jest.fn() });
+        await expect(program.initialize()).rejects.toThrow('invalid profile schema');
+        expect(program.profiles.getProfiles()).toEqual([]);
     });
 
     test.each([true, false])('maps Commander negation without leaking auth (flag present=%s)', async (present) => {
@@ -55,11 +66,11 @@ describe('explicit anonymous profile configuration', () => {
     });
 
     test('default CLI persists --no-auth without OAuth fields', async () => {
-        await createDefaultCamundaCli({ homeDirectory: home, writeLine: jest.fn() }).parseAsync([
+        await createDefaultCamundaCli({ homeDirectory: home, workingDirectory: home, writeLine: jest.fn() }).parseAsync([
             'add', 'profile', '--name', 'local', '--base-url', minimal.baseUrl,
             '--operate-url', minimal.operateUrl, '--zeebe-url', minimal.zeebeUrl, '--no-auth',
         ], { from: 'user' });
-        expect(await new JsonProfileRepositoryAdapter(home).listProfiles()).toEqual([{ ...minimal, noAuth: true }]);
+        expect(await new JsonProfileRepositoryAdapter(home, home).listProfiles()).toEqual([{ ...minimal, noAuth: true }]);
     });
 
     test('keeps unknown stored keys and immutable cache selection', async () => {
@@ -67,7 +78,7 @@ describe('explicit anonymous profile configuration', () => {
         await mkdir(directory);
         const original = { ...minimal, name: ' local ', noAuth: true, clientSecret: ' dummy secret ', future: { value: 1 } };
         await writeFile(path.join(directory, 'profiles.json'), JSON.stringify({ profiles: [original] }));
-        const profiles = await new JsonProfileRepositoryAdapter(home).listProfiles();
+        const profiles = await new JsonProfileRepositoryAdapter(home, home).listProfiles();
         expect(profiles).toEqual([original]);
         const cache = new ProfileCache();
         cache.replaceProfiles(profiles);
@@ -157,7 +168,7 @@ describe('anonymous wire transport', () => {
         expect(http.defaults.headers.common.Authorization).toBe('Bearer stale');
     });
 
-    test('CLI --profile selects anonymous API with polluted global Axios defaults', async () => {
+    test.each([false, true])('CLI selects anonymous API with polluted defaults (local override=%s)', async (localOverride) => {
         const home = await mkdtemp(path.join(tmpdir(), 'no-auth-wire-'));
         const auth = axios.defaults.auth;
         const headers = { ...axios.defaults.headers.common };
@@ -165,11 +176,19 @@ describe('anonymous wire transport', () => {
             axios.defaults.auth = { username: 'dummy', password: 'dummy' };
             axios.defaults.headers.common.Authorization = 'Bearer inherited';
             axios.defaults.headers.common.Cookie = 'dummy=inherited';
-            await new JsonProfileRepositoryAdapter(home).addProfile(profile);
+            const project = path.join(home, 'project');
+            await new JsonProfileRepositoryAdapter(home, home).addProfile({ ...profile, noAuth: !localOverride });
+            if (localOverride) {
+                const directory = path.join(project, '.lmoesle-camunda-cli');
+                await mkdir(directory, { recursive: true });
+                await writeFile(path.join(directory, 'profiles.json'), JSON.stringify({ profiles: [profile] }));
+            }
             responses.push({ body: { key: '1' } });
-            await createDefaultCamundaCli({ homeDirectory: home, writeLine: jest.fn() }).parseAsync([
+            const program = createDefaultCamundaCli({ homeDirectory: home, workingDirectory: localOverride ? project : home, writeLine: jest.fn() });
+            await program.parseAsync([
                 'api', 'byKey_1', '{"path":{"key":1}}', '--profile', 'local',
             ], { from: 'user' });
+            expect(program.profiles.getProfile('local')).toEqual(profile);
             anonymousOnly();
         } finally {
             axios.defaults.auth = auth;

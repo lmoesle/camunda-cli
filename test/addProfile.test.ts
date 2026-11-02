@@ -49,6 +49,7 @@ describe('profile JSON storage and default CLI', () => {
 
     beforeEach(async () => {
         home = await mkdtemp(path.join(tmpdir(), 'camunda-profiles-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
         directory = path.join(home, '.lmoesle-camunda-cli');
         filePath = path.join(directory, 'profiles.json');
         repository = new JsonProfileRepositoryAdapter(home);

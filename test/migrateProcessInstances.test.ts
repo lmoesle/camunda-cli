@@ -495,7 +495,7 @@ describe('migration CLI and presentation', () => {
                 searchActiveInstances: async () => [instance('10'), instance('11')], migrate,
             });
             await expect(runDefaultCamundaCli(['node', 'cli', 'migrate', '--profile', 'selected', '--migrationPlan', JSON.stringify([entry])],
-                { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toMatchObject({ successfulCount: 1, failedCount: 1 });
+                { homeDirectory: home, workingDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toMatchObject({ successfulCount: 1, failedCount: 1 });
             expect(events).toEqual(['10', '11']);
             expect(diagnostic).toHaveBeenCalledTimes(1);
             expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('dummy-secret');
@@ -509,11 +509,11 @@ describe('migration CLI and presentation', () => {
         const output = jest.fn(); const diagnostic = jest.fn();
         try {
             await expect(runDefaultCamundaCli(['node', 'cli', 'migrate', '--profile', 'selected', '--migrationPlan', JSON.stringify([entry])],
-                { homeDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toThrow(/selected profile/);
+                { homeDirectory: home, workingDirectory: home, writeLine: output, writeDiagnostic: diagnostic })).rejects.toThrow(/selected profile/);
             expect(output).not.toHaveBeenCalled();
             expect(diagnostic).toHaveBeenCalledWith('Please add a profile with the add profile command.');
             await new JsonProfileRepositoryAdapter(home).addProfile(local);
-            const runtime = createDefaultCamundaCli({ homeDirectory: home, writeLine: output });
+            const runtime = createDefaultCamundaCli({ homeDirectory: home, workingDirectory: home, writeLine: output });
             await runtime.initialize();
             await fs.writeFile(path.join(home, '.lmoesle-camunda-cli', 'profiles.json'), '{"profiles":[]}');
             const connect = jest.spyOn(AxiosMigrationAdapter.prototype, 'connect').mockResolvedValue({

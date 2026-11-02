@@ -13,8 +13,14 @@ function overrideExits(program: Command): Command {
 describe('supported CLI commands', () => {
     let home: string;
 
-    beforeEach(async () => { home = await mkdtemp(path.join(tmpdir(), 'camunda-commands-')); });
-    afterEach(async () => { await rm(home, { recursive: true, force: true }); });
+    beforeEach(async () => {
+        home = await mkdtemp(path.join(tmpdir(), 'camunda-commands-'));
+        jest.spyOn(process, 'cwd').mockReturnValue(home);
+    });
+    afterEach(async () => {
+        jest.restoreAllMocks();
+        await rm(home, { recursive: true, force: true });
+    });
 
     test.each(['injected', 'default'])('%s runtime exposes only supported commands without startup I/O', async (runtime) => {
         const writeLine = jest.fn();
