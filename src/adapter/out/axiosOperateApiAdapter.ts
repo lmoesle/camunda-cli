@@ -5,29 +5,34 @@ import { OperateConnection } from '../../domain/operateConnection';
 import { OperateRequest } from '../../domain/operateApiTypes';
 import { assertReadOnlyOperateDispatch } from '../../domain/operateApiPolicy';
 import { dispatchOperateRequest } from './operateApiDispatch';
+import { anonymousHttp } from './anonymousHttp';
 
 export class AxiosOperateApiAdapter implements OperateApiOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async execute(connection: OperateConnection, request: OperateRequest): Promise<unknown> {
         assertReadOnlyOperateDispatch(request);
-        const form = new URLSearchParams({
-            grant_type: 'client_credentials', client_id: connection.clientId, client_secret: connection.clientSecret,
-        });
-        if (connection.audience !== undefined) form.set('audience', connection.audience);
-        const auth = await this.request('POST', connection.oAuthUrl, form.toString(), {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        }, 'OAuth authentication');
-        const authentication = json(auth.data, 'OAuth authentication');
-        const token = authentication !== null && typeof authentication === 'object'
-            ? (authentication as Record<string, unknown>).access_token : undefined;
-        if (typeof token !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(token)) {
-            throw new Error('OAuth authentication returned an invalid access_token.');
+        let token: string | undefined;
+        if (connection.noAuth !== true) {
+            const form = new URLSearchParams({
+                grant_type: 'client_credentials', client_id: connection.clientId, client_secret: connection.clientSecret,
+            });
+            if (connection.audience !== undefined) form.set('audience', connection.audience);
+            const auth = await this.request('POST', connection.oAuthUrl, form.toString(), {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }, 'OAuth authentication');
+            const authentication = json(auth.data, 'OAuth authentication');
+            const accessToken = authentication !== null && typeof authentication === 'object'
+                ? (authentication as Record<string, unknown>).access_token : undefined;
+            if (typeof accessToken !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(accessToken)) {
+                throw new Error('OAuth authentication returned an invalid access_token.');
+            }
+            token = accessToken;
         }
         const root = connection.operateUrl.endsWith('/v1') ? connection.operateUrl.slice(0, -3) : connection.operateUrl;
         let response: AxiosResponse<unknown>;
         try {
-            response = await dispatchOperateRequest(this.http, root, token, request);
+            response = await dispatchOperateRequest(connection.noAuth === true ? anonymousHttp(this.http) : this.http, root, token, request);
         } catch (error) {
             throw sanitized(error, 'Operate API request');
         }

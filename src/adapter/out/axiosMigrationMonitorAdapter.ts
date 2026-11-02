@@ -4,26 +4,32 @@ import { MigrationMonitorOutPort } from '../../application/ports/out/migrationMo
 import { OperateConnection } from '../../domain/operateConnection';
 import { inconsistentMonitorData, MonitorDefinition, MonitorInstance } from '../../domain/migrationMonitor';
 import { dispatchOperateRequest } from './operateApiDispatch';
+import { anonymousHttp } from './anonymousHttp';
 
 export class AxiosMigrationMonitorAdapter implements MigrationMonitorOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async discover(connection: OperateConnection): Promise<{ definitions: MonitorDefinition[]; instances: MonitorInstance[] }> {
-        const form = new URLSearchParams({ grant_type: 'client_credentials', client_id: connection.clientId, client_secret: connection.clientSecret });
-        if (connection.audience !== undefined) form.set('audience', connection.audience);
-        const auth = record(await this.request(() => this.http.post(connection.oAuthUrl, form.toString(), {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 30000, maxRedirects: 0,
-            responseType: 'text', transformResponse: [(value: unknown) => value],
-        }), 'OAuth authentication'));
-        const token = auth?.access_token;
-        if (typeof token !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(token)) throw new Error('OAuth authentication returned an invalid access_token.');
+        const http = connection.noAuth === true ? anonymousHttp(this.http) : this.http;
+        let token: string | undefined;
+        if (connection.noAuth !== true) {
+            const form = new URLSearchParams({ grant_type: 'client_credentials', client_id: connection.clientId, client_secret: connection.clientSecret });
+            if (connection.audience !== undefined) form.set('audience', connection.audience);
+            const auth = record(await this.request(() => this.http.post(connection.oAuthUrl, form.toString(), {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 30000, maxRedirects: 0,
+                responseType: 'text', transformResponse: [(value: unknown) => value],
+            }), 'OAuth authentication'));
+            const accessToken = auth?.access_token;
+            if (typeof accessToken !== 'string' || !/^[A-Za-z0-9\-._~+/]+=*$/.test(accessToken)) throw new Error('OAuth authentication returned an invalid access_token.');
+            token = accessToken;
+        }
         const basePath = connection.operateUrl.replace(/\/v1$/, '');
-        const definitions = await this.search(basePath, token, 'search_2', {}, (item): MonitorDefinition => {
+        const definitions = await this.search(http, basePath, token, 'search_2', {}, (item): MonitorDefinition => {
             if (item.name !== undefined && item.name !== null && typeof item.name !== 'string') throw inconsistentMonitorData();
             return { key: decimalKey(item.key), bpmnProcessId: processId(item.bpmnProcessId), version: numericVersion(item.version),
                 name: typeof item.name === 'string' ? item.name : undefined, ...tenant(item) };
         });
-        const instances = await this.search(basePath, token, 'search_1', { state: 'ACTIVE' }, (item): MonitorInstance => {
+        const instances = await this.search(http, basePath, token, 'search_1', { state: 'ACTIVE' }, (item): MonitorInstance => {
             if (item.state !== 'ACTIVE') throw inconsistentMonitorData();
             return { key: decimalKey(item.key), processDefinitionKey: decimalKey(item.processDefinitionKey),
                 bpmnProcessId: processId(item.bpmnProcessId), processVersion: numericVersion(item.processVersion), ...tenant(item) };
@@ -31,14 +37,14 @@ export class AxiosMigrationMonitorAdapter implements MigrationMonitorOutPort {
         return { definitions, instances };
     }
 
-    private async search<T extends { key: string }>(basePath: string, token: string, operationId: 'search_1' | 'search_2',
+    private async search<T extends { key: string }>(http: AxiosInstance, basePath: string, token: string | undefined, operationId: 'search_1' | 'search_2',
         filter: object, decode: (item: Record<string, unknown>) => T): Promise<T[]> {
         const items: T[] = [];
         let searchAfter: unknown[] | undefined;
         let previousKey: bigint | undefined;
         for (;;) {
             const body = stringify({ filter, size: 100, sort: [{ field: 'key', order: 'ASC' }], ...(searchAfter ? { searchAfter } : {}) })!;
-            const page = record(await this.request(() => dispatchOperateRequest(this.http, basePath, token, { operationId, body }), 'Operate migration monitor discovery'));
+            const page = record(await this.request(() => dispatchOperateRequest(http, basePath, token, { operationId, body }), 'Operate migration monitor discovery'));
             if (!page || !Array.isArray(page.items)) throw inconsistentMonitorData();
             if (!page.items.length) return items;
             const batch = page.items.map((value) => {

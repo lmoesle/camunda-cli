@@ -106,8 +106,11 @@ For all ACTIVE incidents, consider the dedicated `incidents` command instead.
 
 ## Connection, output, and failures
 
-- Execution requires a stored profile with `operateUrl`, `oAuthUrl`,
-  `clientId`, and `clientSecret`, **even on Self-Managed**. See
+- Execution requires a stored profile with `operateUrl` and either the JSON boolean
+  `noAuth: true` or `oAuthUrl`, `clientId`, and `clientSecret`. Explicit no-auth skips
+  OAuth and authentication headers, overriding retained credentials; use it only for
+  deliberately unauthenticated services, not default C8Run. False or omitted preserves
+  existing behavior. See
   [profiles](profiles.md) for audience selection and credential safety.
 - The CLI preserves reverse-proxy and cluster path prefixes and avoids
   duplicating a trailing `/v1`. Request JSON cannot override the origin,
@@ -126,5 +129,4 @@ Select only supported operations from `api ls`. The CLI explicitly approves
 reviewed operationId/method/path tuples, not all GETs or arbitrary POST searches.
 The eight POST searches read data without changing cluster state. OAuth uses POST
 for authentication and remains supported.
-
 

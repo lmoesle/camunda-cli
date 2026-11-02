@@ -1,12 +1,22 @@
 import { Profile } from './profile';
 
-export interface OperateConnection {
+interface AuthenticatedOperateConnection {
+    noAuth?: false;
     operateUrl: string;
     oAuthUrl: string;
     clientId: string;
     clientSecret: string;
     audience?: string;
 }
+
+export type OperateConnection = AuthenticatedOperateConnection | {
+    operateUrl: string;
+    noAuth: true;
+    oAuthUrl?: never;
+    clientId?: never;
+    clientSecret?: never;
+    audience?: never;
+};
 
 function required(value: string | undefined, field: string, operation: string): string {
     if (typeof value !== 'string' || !value.trim()) {
@@ -27,6 +37,7 @@ function endpoint(value: string | undefined, field: string, operation: string): 
 
 export function operateConnection(profile: Profile, operation: string): OperateConnection {
     const operateUrl = endpoint(profile.operateUrl, 'operateUrl', operation);
+    if (profile.noAuth === true) return { operateUrl, noAuth: true };
     const oAuthUrl = endpoint(profile.oAuthUrl, 'oAuthUrl', operation);
     const clientId = required(profile.clientId, 'clientId', operation);
     const clientSecret = required(profile.clientSecret, 'clientSecret', operation);
