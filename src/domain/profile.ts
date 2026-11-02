@@ -1,6 +1,7 @@
 export interface Profile {
     name: string;
     baseUrl: string;
+    noAuth?: boolean;
     clientId?: string;
     clientSecret?: string;
     audience?: string;
@@ -17,6 +18,10 @@ export function createProfile(input: Profile): Profile {
     requireNonblankString(input.baseUrl, 'baseUrl');
 
     const profile: Profile = { name: input.name.trim(), baseUrl: input.baseUrl };
+    if (input.noAuth !== undefined) {
+        if (typeof input.noAuth !== 'boolean') throw new Error('Profile noAuth must be a boolean.');
+        profile.noAuth = input.noAuth;
+    }
     for (const field of optionalProfileFields) {
         const value = input[field];
         if (value !== undefined) {

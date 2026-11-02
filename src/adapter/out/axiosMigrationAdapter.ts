@@ -3,6 +3,7 @@ import { isLosslessNumber, LosslessNumber, parse, stringify } from 'lossless-jso
 import { MigrationOutPort, MigrationSession } from '../../application/ports/out/migrationOutPort';
 import { MigrationConnection, MigrationDefinition, MigrationInstance, MigrationPlanEntry, MissingMigrationElement } from '../../domain/migration';
 import { dispatchOperateRequest } from './operateApiDispatch';
+import { anonymousHttp } from './anonymousHttp';
 
 interface MigrationRequest {
     instanceKey: string;
@@ -13,8 +14,9 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async connect(connection: MigrationConnection): Promise<MigrationSession> {
+        const http = connection.noAuth === true ? anonymousHttp(this.http) : this.http;
         const token = async (audience: string | undefined): Promise<string | undefined> => {
-            if (!connection.oauth) return undefined;
+            if (connection.noAuth === true || !connection.oauth) return undefined;
             const form = new URLSearchParams({ grant_type: 'client_credentials', client_id: connection.oauth.clientId,
                 client_secret: connection.oauth.clientSecret });
             if (audience !== undefined) form.set('audience', audience);
@@ -32,14 +34,14 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
         const basePath = connection.operateUrl.replace(/\/v1$/, '');
         return {
             searchDefinitions: async (bpmnProcessId, version) => this.search(
-                basePath, 'search_2', { bpmnProcessId, version }, operateToken,
+                http, basePath, 'search_2', { bpmnProcessId, version }, operateToken,
                 (value): MigrationDefinition => {
                     const item = record(value);
                     if (!item || item.bpmnProcessId !== bpmnProcessId || numericVersion(item.version) !== version) throw malformed();
                     return { key: decimalKey(item.key), bpmnProcessId, version, ...tenant(item) };
                 }),
             searchActiveInstances: async (source) => this.search(
-                basePath, 'search_1', { processDefinitionKey: new LosslessNumber(decimalKey(source.key)), state: 'ACTIVE' },
+                http, basePath, 'search_1', { processDefinitionKey: new LosslessNumber(decimalKey(source.key)), state: 'ACTIVE' },
                 operateToken, (value): MigrationInstance => {
                     const item = record(value);
                     if (!item || item.state !== 'ACTIVE' || decimalKey(item.processDefinitionKey) !== source.key || item.tenantId !== source.tenantId) throw malformed();
@@ -48,12 +50,12 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
             migrate: async (instanceKey, targetProcessDefinitionKey, mappingInstructions) => {
                 await this.request(`${connection.gatewayUrl}/process-instances/${decimalKey(instanceKey)}/migration`,
                     JSON.stringify({ targetProcessDefinitionKey: decimalKey(targetProcessDefinitionKey), mappingInstructions }),
-                    gatewayHeaders, 'Process instance migration', { instanceKey: decimalKey(instanceKey), mappingInstructions });
+                    gatewayHeaders, 'Process instance migration', { instanceKey: decimalKey(instanceKey), mappingInstructions }, http);
             },
         };
     }
 
-    private async search<T extends { key: string }>(basePath: string, operationId: 'search_1' | 'search_2', filter: object, token: string | undefined,
+    private async search<T extends { key: string }>(http: AxiosInstance, basePath: string, operationId: 'search_1' | 'search_2', filter: object, token: string | undefined,
         decode: (value: unknown) => T): Promise<T[]> {
         const items: T[] = [];
         let searchAfter: unknown[] | undefined;
@@ -61,7 +63,7 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
         for (;;) {
             const body = stringify({ filter, size: 100,
                 sort: [{ field: 'key', order: 'ASC' }], ...(searchAfter ? { searchAfter } : {}) })!;
-            const page = record(await this.request(() => dispatchOperateRequest(this.http, basePath, token,
+            const page = record(await this.request(() => dispatchOperateRequest(http, basePath, token,
                 { operationId, body }), body, {}, 'Operate migration discovery'));
             if (!page || !Array.isArray(page.items)) throw malformed();
             if (!page.items.length) return items;
@@ -83,10 +85,10 @@ export class AxiosMigrationAdapter implements MigrationOutPort {
         }
     }
 
-    private async request(url: string | (() => AxiosPromise<unknown>), data: string, headers: Record<string, string>, operation: string, migration?: MigrationRequest): Promise<unknown> {
+    private async request(url: string | (() => AxiosPromise<unknown>), data: string, headers: Record<string, string>, operation: string, migration?: MigrationRequest, http = this.http): Promise<unknown> {
         let text: unknown;
         try {
-            const response = await (typeof url === 'function' ? url() : this.http.post(url, data, { headers, timeout: 30000, maxRedirects: 0,
+            const response = await (typeof url === 'function' ? url() : http.post(url, data, { headers, timeout: 30000, maxRedirects: 0,
                 responseType: 'text', transformResponse: [(value: unknown) => value] }));
             if (response.status !== (migration ? 204 : 200) ||
                 (migration && response.data !== '' && response.data !== undefined && response.data !== null)) {

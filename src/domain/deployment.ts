@@ -2,6 +2,7 @@ import { Profile } from './profile';
 import { restConnection } from './restConnection';
 
 export interface DeploymentConnection {
+    noAuth?: true;
     deploymentsUrl: string;
     oauth?: { oAuthUrl: string; clientId: string; clientSecret: string; audience?: string };
 }
@@ -12,7 +13,8 @@ export interface DeploymentResource {
 }
 
 export function deploymentConnection(profile: Profile): DeploymentConnection {
-    const { restUrl, oauth } = restConnection(profile, 'deploy');
+    const { restUrl, oauth, noAuth } = restConnection(profile, 'deploy');
+    if (noAuth) return { deploymentsUrl: `${restUrl}/deployments`, noAuth };
     return oauth ? { deploymentsUrl: `${restUrl}/deployments`, oauth } : { deploymentsUrl: `${restUrl}/deployments` };
 }
 

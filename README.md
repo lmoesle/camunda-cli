@@ -36,8 +36,9 @@ camunda-cli add profile --name <name> --base-url <url> [options]
 | `--audience <audience>` | Optional gateway OAuth audience; also the legacy Operate fallback. |
 | `--operate-audience <audience>` | Optional Operate OAuth audience override. |
 | `--oauth-url <url>` | Optional OAuth token endpoint for client-credentials authentication. |
-| `--operate-url <url>` | Optional Operate service root; required by api, incidents, and migrate. |
+| `--operate-url <url>` | Optional Operate service root; required by api, incidents, migration-monitor, and migrate. |
 | `--zeebe-url <url>` | Optional stored Zeebe URL; current commands do not use it. |
+| `--no-auth` | Store `noAuth: true` to disable authentication. |
 
 Creating a profile does not test connectivity or authentication.
 Profiles default to `~/.lmoesle-camunda-cli/profiles.json`. If `.lmoesle-camunda-cli/profiles.json` exists in the invocation's current working directory, the CLI reads only that document instead. It never searches ancestor directories or merges profiles with home storage; `{ "profiles": [] }` overrides home with no profiles. Missing local storage falls back to home, but malformed, unreadable, or unsafe local storage fails instead of falling back.
@@ -49,8 +50,23 @@ Cluster commands do not fall back to `--zeebe-url` or environment settings.
 
 - **OAuth:** Supply all three of `--client-id`, `--client-secret`, and `--oauth-url`; partial or blank configuration fails at use. SaaS gateway commands require an audience, normally `zeebe.camunda.io`; SaaS Operate also requires an audience, normally `operate.camunda.io`.
   For a shared SaaS migration profile, set **both** `--audience` and `--operate-audience` and grant access to both APIs. Self-Managed OAuth can omit audiences; incidents and Self-Managed migration use `--audience` when no Operate override is present.
-- **No authentication:** Self-Managed deploy, retry, and migrate can omit all OAuth fields (including audiences) only when the relevant services are intentionally configured without authentication. This does not describe default C8Run.
-  **Incidents and api always require OAuth**, even on Self-Managed. Cookie and Basic authentication are not supported.
+- **No authentication:** Set the JSON boolean `noAuth: true`, or create a profile with `--no-auth`, for deliberately unauthenticated services. This is **not the default C8Run configuration**. All six cluster command families (`api`, `incidents`, `migration-monitor`, `deploy`, `incident retry`, `migrate`) skip OAuth requests and send no authentication headers. Literal `true` overrides and ignores any retained OAuth settings, even partial or malformed ones. Required service URL validation still applies. Cookie and Basic authentication are not supported.
+- **Unchanged defaults:** `noAuth: false` or an omitted `noAuth` preserves existing authentication behavior. Deploy, retry, and Self-Managed migrate can still omit all OAuth fields (including audiences) for intentionally unauthenticated services; Operate-only commands otherwise require OAuth.
+
+For deliberately unauthenticated local services, create and select a profile:
+
+```sh
+camunda-cli add profile --name local --base-url http://localhost:8080 --operate-url http://localhost:8081 --zeebe-url http://localhost:26500 --no-auth
+camunda-cli incidents --profile local
+```
+
+The equivalent entry in the `profiles` array is:
+
+```json
+{"name":"local","baseUrl":"http://localhost:8080","operateUrl":"http://localhost:8081","zeebeUrl":"http://localhost:26500","noAuth":true}
+```
+
+Use a JSON boolean, not the string `"true"`. `zeebeUrl` remains stored-only; no endpoint defaults or fallbacks apply. Select this profile explicitly with `--profile local` on each cluster command.
 
 ### api
 
@@ -87,7 +103,7 @@ For example, `{"path":{},"query":{},"body":{"size":10}}` invokes a search. Even 
 
 The pinned upstream schema declares `searchAfter` items as objects even though some upstream examples show primitive cursor values. Validation follows the schema, not those contradictory examples. `api` does not infer additional operations, correct upstream schemas, or use another API version.
 
-Execution requires the selected profile's `operateUrl`, `oAuthUrl`, `clientId`, and `clientSecret`. `operateAudience` overrides the legacy `audience` fallback; SaaS requires an audience, while Self-Managed OAuth can omit it. The CLI preserves reverse-proxy/cluster path prefixes and avoids duplicating a trailing `/v1`. Request JSON cannot override the origin, authentication, or headers. Requests time out after 30 seconds and do not follow redirects.
+Execution requires the selected profile's `operateUrl` and, unless `noAuth: true`, `oAuthUrl`, `clientId`, and `clientSecret`. For OAuth, `operateAudience` overrides the legacy `audience` fallback; SaaS requires an audience, while Self-Managed OAuth can omit it. The CLI preserves reverse-proxy/cluster path prefixes and avoids duplicating a trailing `/v1`. Request JSON cannot override the origin, authentication, or headers. Requests time out after 30 seconds and do not follow redirects.
 
 Stdout contains one pretty-printed JSON value: parsed JSON (including lossless int64 numbers), a JSON string for text/XML, or `null` for an empty response. Startup notices and errors go to stderr.
 
@@ -211,7 +227,7 @@ After validating all inputs and the combined plan, the command atomically replac
 
 ### incidents
 
-List all ACTIVE incidents visible to the selected profile's Operate credentials.
+List all ACTIVE incidents visible through the selected profile's Operate connection.
 
 ```sh
 camunda-cli incidents --profile <name> [--json]
@@ -219,7 +235,7 @@ camunda-cli incidents --profile <name> [--json]
 
 | Flag | Description |
 | --- | --- |
-| `--profile <name>` | Required stored, case-sensitive profile name with Operate root, OAuth token URL, client ID, and client secret, even on Self-Managed; no no-auth mode. |
+| `--profile <name>` | Required stored, case-sensitive profile name with Operate root and either `noAuth: true` or OAuth token URL, client ID, and client secret. |
 | `--json` | Print a JSON array instead of the default table; key fields are decimal strings to preserve precision. |
 
 The listing has no process or tenant filter. Non-job incidents have no job key.

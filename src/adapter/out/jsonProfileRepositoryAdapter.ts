@@ -174,6 +174,7 @@ function validateStoredProfile(profile: unknown): string {
     }
     const name = storedRequiredString(profile.name);
     storedRequiredString(profile.baseUrl);
+    if ('noAuth' in profile && typeof profile.noAuth !== 'boolean') throw new Error('Profile noAuth must be a boolean.');
     if (optionalProfileFields.some((field) => field in profile && typeof profile[field] !== 'string')) {
         throw new Error();
     }

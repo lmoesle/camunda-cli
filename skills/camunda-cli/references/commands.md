@@ -26,7 +26,7 @@ values containing spaces. Every cluster command requires explicit
 | `api ls` | Offline catalogue of 20 supported read-only Operate operations; accepts neither request nor profile. |
 | `api <operationId> <request-json> --profile <name>` | Execute a supported read-only Operate operation; see [API usage](api.md). Inline request required. POST searches are read-only. |
 | `add profile --name <name> --base-url <url> [options]` | Store connection settings; see [profiles](profiles.md). Writes plaintext credentials locally, without testing them. |
-| `incidents --profile <name> [--json]` | List all visible ACTIVE incidents through Operate. Requires OAuth even on Self-Managed. Default output is a table; JSON key fields are decimal strings to preserve precision. No process or tenant filter; non-job incidents have no job key. |
+| `incidents --profile <name> [--json]` | List all visible ACTIVE incidents through Operate. Requires OAuth unless `noAuth: true`. Default output is a table; JSON key fields are decimal strings to preserve precision. No process or tenant filter; non-job incidents have no job key. |
 | `migration-monitor --profile <name> [--json]` | One-shot read-only Camunda 8.7 report of processes with ACTIVE instances older than the latest visible deployed numeric version (even if that version has no instances). Counts incident-bearing ACTIVE instances. Default table shows name, BPMN process ID, latest version, total active count across versions, and Number of outdated instances (total active instances on older versions, excluding the latest); separates tenants. JSON includes counts per outdated version. Never migrates. |
 | `deploy <path> --profile <name> [-r\|--recursive]` | Deploy eligible local files independently. Mutates the cluster. |
 | `migrate --profile <name> --migrationPlan <json-or-path>` | Migrate ACTIVE instances of selected source definitions, including instances with incidents. Mutates the cluster. Capital `P` matters; no `--migration-plan` alias. |
@@ -66,9 +66,12 @@ numerically, with an ACTIVE instance count for each version:
 Here, four instances on version 3 count only in the total of nine. The flag
 changes presentation only, not read-only discovery.
 
-The selected profile needs
-`operateUrl`, `oAuthUrl`, `clientId`, and `clientSecret`; no gateway is used.
-`operateAudience` overrides `audience`, and SaaS requires an audience, as for
+The selected profile needs `operateUrl` and either `noAuth: true` or
+`oAuthUrl`, `clientId`, and `clientSecret`; no gateway is used.
+Explicit no-auth skips OAuth requests and authentication headers, even with retained
+credentials. Use it only for deliberately unauthenticated services, not default C8Run;
+false or omitted preserves existing behavior. See [profile examples](profiles.md).
+For OAuth, `operateAudience` overrides `audience`, and SaaS requires an audience, as for
 `incidents`. Discovery paginates all definitions and ACTIVE instances visible to
 the profile, not just definitions with instances. Operate is eventually
 consistent, not an atomic snapshot: missing or inconsistent data fails safely;

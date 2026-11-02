@@ -2,13 +2,15 @@ import axios, { AxiosInstance } from 'axios';
 import { isLosslessNumber, parse } from 'lossless-json';
 import { DeploymentOutPort, DeploymentSession } from '../../application/ports/out/deploymentOutPort';
 import { DeploymentConnection } from '../../domain/deployment';
+import { anonymousHttp } from './anonymousHttp';
 
 export class AxiosDeploymentAdapter implements DeploymentOutPort {
     constructor(private readonly http: AxiosInstance = axios.create()) {}
 
     async connect(connection: DeploymentConnection): Promise<DeploymentSession> {
+        const http = connection.noAuth === true ? anonymousHttp(this.http) : this.http;
         const headers: Record<string, string> = {};
-        if (connection.oauth) {
+        if (connection.noAuth !== true && connection.oauth) {
             const { oAuthUrl, clientId, clientSecret, audience } = connection.oauth;
             const form = new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret });
             if (audience !== undefined) form.set('audience', audience);
@@ -25,7 +27,7 @@ export class AxiosDeploymentAdapter implements DeploymentOutPort {
             deploy: async (resource) => {
                 const form = new FormData();
                 form.append('resources', new Blob([new Uint8Array(resource.bytes)], { type: 'application/octet-stream' }), resource.filename);
-                const response = await this.request(connection.deploymentsUrl, form, headers, 'Resource deployment');
+                const response = await this.request(connection.deploymentsUrl, form, headers, 'Resource deployment', http);
                 const key = record(response)?.deploymentKey;
                 const text = isLosslessNumber(key) ? key.value : key;
                 if (typeof text !== 'string' || !/^\d+$/.test(text) || BigInt(text) > 9223372036854775807n) {
@@ -36,10 +38,10 @@ export class AxiosDeploymentAdapter implements DeploymentOutPort {
         };
     }
 
-    private async request(url: string, data: string | FormData, headers: Record<string, string>, operation: string): Promise<unknown> {
+    private async request(url: string, data: string | FormData, headers: Record<string, string>, operation: string, http = this.http): Promise<unknown> {
         let text: unknown;
         try {
-            const response = await this.http.post(url, data, {
+            const response = await http.post(url, data, {
                 headers, timeout: 30000, maxRedirects: 0, responseType: 'text', transformResponse: [(value: unknown) => value],
             });
             text = response.data;

@@ -1,6 +1,7 @@
 import { Profile } from './profile';
 
 export interface RestConnection {
+    noAuth?: true;
     restUrl: string;
     oauth?: { oAuthUrl: string; clientId: string; clientSecret: string; audience?: string };
 }
@@ -8,6 +9,7 @@ export interface RestConnection {
 export function restConnection(profile: Profile, operation: string): RestConnection {
     const root = endpoint(profile.baseUrl, 'baseUrl', operation);
     const restUrl = `${root}${root.endsWith('/v2') ? '' : '/v2'}`;
+    if (profile.noAuth === true) return { restUrl, noAuth: true };
     const fields = ['clientId', 'clientSecret', 'oAuthUrl', 'audience'] as const;
     if (!fields.some((field) => Object.prototype.hasOwnProperty.call(profile, field))) return { restUrl };
     const oAuthUrl = endpoint(profile.oAuthUrl, 'oAuthUrl', operation);
