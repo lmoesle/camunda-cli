@@ -17,7 +17,7 @@ The YAML is an unchanged upstream download. The project's MIT license does not r
 
 ## Generate the Axios clients
 
-The repository pins `@openapitools/openapi-generator-cli` **2.41.0** in `package.json` and OpenAPI Generator **7.22.0** in `openapitools.json`. Install Node dependencies, then run from the repository root with Java 11+ available:
+The repository pins `@openapitools/openapi-generator-cli` **2.42.1** in `package.json` and OpenAPI Generator **7.22.0** in `openapitools.json`. Install Node dependencies, then run from the repository root with Java 11+ available:
 
 ```sh
 npm run generate:operate-api
