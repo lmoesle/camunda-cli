@@ -1,4 +1,13 @@
 export { createCamundaCli, runCamundaCli } from './adapter/in/camundaCliAdapter';
+export { CreateProcessInstanceUseCase } from './application/usecases/createProcessInstanceUseCase';
+export { AxiosProcessInstanceAdapter } from './adapter/out/axiosProcessInstanceAdapter';
+export { ConsoleProcessInstancePresenter } from './adapter/out/consoleProcessInstancePresenter';
+export { processInstanceRequest, ProcessInstanceFailure } from './domain/processInstance';
+export type { ProcessInstanceRequest } from './domain/processInstance';
+export type { CreateProcessInstanceCommand, CreateProcessInstanceInPort } from './application/ports/in/createProcessInstanceInPort';
+export type { ProcessInstanceOutPort, ProcessInstanceSession } from './application/ports/out/processInstanceOutPort';
+export type { ProcessInstanceProfileOutPort } from './application/ports/out/processInstanceProfileOutPort';
+export type { ShowProcessInstanceOutPort } from './application/ports/out/showProcessInstanceOutPort';
 export type { CamundaCliDependencies } from './adapter/in/camundaCliAdapter';
 export { createDefaultCamundaCli, runDefaultCamundaCli } from './bootstrap/camundaCli';
 export type { CamundaCliBootstrapOptions, DefaultCamundaCli } from './bootstrap/camundaCli';

@@ -4,6 +4,7 @@ import { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import axios from 'axios';
+import { AxiosProcessInstanceAdapter } from '../src';
 import {
     AxiosDeploymentAdapter, AxiosIncidentAdapter, AxiosIncidentRetryAdapter, AxiosMigrationAdapter,
     AxiosMigrationMonitorAdapter, AxiosOperateApiAdapter, createCamundaCli, createDefaultCamundaCli,
@@ -237,13 +238,23 @@ describe('anonymous wire transport', () => {
         anonymousOnly();
     });
 
-    test.each(['api', 'incidents', 'monitor', 'deploy', 'retry', 'migrate'])('%s never falls back to OAuth after 401/403', async (family) => {
+    test('creation strips inherited auth and cookies and ignores retained OAuth', async () => {
+        responses.push({ body: { processInstanceKey: '9007199254740993' } });
+        const session = await new AxiosProcessInstanceAdapter(pollutedHttp()).connect(restConnection(profile, 'create-process-instance'));
+        expect(await session.create({ processDefinitionId: 'p', processDefinitionVersion: -1, variables: {} })).toBe('9007199254740993');
+        expect(received.map((call) => call.path)).toEqual(['/v2/process-instances']);
+        anonymousOnly();
+    });
+
+    test.each(['create', 'api', 'incidents', 'monitor', 'deploy', 'retry', 'migrate'])('%s never falls back to OAuth after 401/403', async (family) => {
         for (const status of [401, 403]) {
             received = [];
             responses.push({ status });
             const http = pollutedHttp();
             const send = async () => {
                 switch (family) {
+                case 'create': return (await new AxiosProcessInstanceAdapter(http).connect(restConnection(profile, 'create-process-instance')))
+                    .create({ processDefinitionId: 'p', processDefinitionVersion: 1, variables: {} });
                 case 'api': return new AxiosOperateApiAdapter(http).execute(operateConnection(profile, 'api'), request());
                 case 'incidents': return new AxiosIncidentAdapter(http).searchActiveIncidents(operateConnection(profile, 'incidents'));
                 case 'monitor': return new AxiosMigrationMonitorAdapter(http).discover(operateConnection(profile, 'monitor'));

@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { CreateProcessInstanceCommand, CreateProcessInstanceInPort } from '../../application/ports/in/createProcessInstanceInPort';
 import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/addProfileInPort';
 import { ListIncidentsCommand, ListIncidentsInPort } from '../../application/ports/in/listIncidentsInPort';
 import { DeployFilesCommand, DeployFilesInPort } from '../../application/ports/in/deployFilesInPort';
@@ -15,6 +16,7 @@ const cliVersion = typeof CAMUNDA_CLI_VERSION === 'string'
     : process.env.npm_package_version ?? '0.1.0';
 
 export interface CamundaCliDependencies {
+    createProcessInstanceInPort?: CreateProcessInstanceInPort;
     addProfileInPort?: AddProfileInPort;
     listIncidentsInPort?: ListIncidentsInPort;
     deployFilesInPort?: DeployFilesInPort;
@@ -32,7 +34,20 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
     program
         .name('camunda-cli')
         .description('CLI for interacting with Camunda 8')
+        // Let child commands own their options, including process --version.
+        .enablePositionalOptions()
         .version(dependencies.version ?? cliVersion);
+
+    program.command('create-process-instance')
+        .description('Create a Camunda 8.7 process instance without waiting for completion')
+        .requiredOption('--id <process-definition-id>', 'BPMN process ID, not a numeric definition key')
+        .requiredOption('--version <version>', 'deployed version (1..2147483647), or -1 for latest')
+        .requiredOption('--variables <json>', 'inline JSON object')
+        .requiredOption('--profile <profile>', 'stored gateway profile name')
+        .action(async (options: CreateProcessInstanceCommand) => {
+            if (!dependencies.createProcessInstanceInPort) throw new Error('The create-process-instance command requires a CreateProcessInstanceInPort dependency.');
+            await dependencies.createProcessInstanceInPort.createProcessInstance(options);
+        });
 
     program.command('api')
         .description('Call reviewed read-only Operate 8.7 operations; api ls lists supported operations offline')

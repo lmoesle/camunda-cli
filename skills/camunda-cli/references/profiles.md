@@ -53,7 +53,8 @@ or authentication.
 
 Use HTTP(S) service roots with any required SaaS cluster ID or reverse-proxy
 prefix. Do not embed credentials, query parameters, or fragments. Gateway
-commands use `baseUrl`; Operate commands use `operateUrl`. They do not fall
+commands (`create-process-instance`, `deploy`, `incident retry`, and the gateway
+part of `migrate`) use `baseUrl`; Operate commands use `operateUrl`. They do not fall
 back to `zeebeUrl`. For migration, both roots must address the same cluster.
 
 ## Match authentication to the command
@@ -61,7 +62,7 @@ back to `zeebeUrl`. For migration, both roots must address the same cluster.
 | Command | Authentication |
 | --- | --- |
 | `api`, `incidents`, `migration-monitor` | Require `--client-id`, `--client-secret`, and `--oauth-url` unless the profile sets `noAuth: true`. No Basic or cookie mode. |
-| `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
+| `create-process-instance`, `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
 | `api ls`, help/version, `create-migration-bundle` | No cluster connection or profile needed. Bundling still writes a local file. |
 
 When `noAuth` is false or omitted, supply all OAuth credential fields together; partial or blank configuration
@@ -79,10 +80,16 @@ browser session when OAuth configuration is missing.
 
 Use `noAuth: true` only for services intentionally configured without authentication,
 **not default C8Run**. Literal `true` overrides and ignores retained OAuth settings,
-even partial or malformed ones. All six cluster command families skip OAuth requests
+even partial or malformed ones. All cluster command families skip OAuth requests
 and send no authentication headers. Required service URL validation still applies.
 `noAuth: false` or an omitted field preserves existing behavior, including implicit
-anonymous deploy, retry, and Self-Managed migrate with no OAuth fields.
+anonymous create-process-instance, deploy, retry, and Self-Managed migrate with no OAuth fields.
+
+Creation uses a fresh client-credentials token per invocation with the selected
+profile's gateway audience. Literal `noAuth: true` skips that token request and
+strips inherited authentication headers and cookies. It never falls back to
+OAuth after an anonymous request fails. Creation uses neither Operate nor Zeebe,
+offers no custom tenant selection, and does not relax mutation permission rules.
 
 Example configuration for the user's trusted local setup:
 

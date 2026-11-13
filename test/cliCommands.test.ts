@@ -26,7 +26,7 @@ describe('supported CLI commands', () => {
         const writeLine = jest.fn();
         const program = overrideExits(runtime === 'default'
             ? createDefaultCamundaCli({ homeDirectory: home, writeLine }) : createCamundaCli({}));
-        expect(program.commands.map((command) => command.name())).toEqual(['api', 'migration-monitor', 'migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
+        expect(program.commands.map((command) => command.name())).toEqual(['create-process-instance', 'api', 'migration-monitor', 'migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
         expect(program.commands.find((command) => command.name() === 'incident')!.commands.map((command) => command.name()))
             .toEqual(['retry']);
         expect(program.commands.find((command) => command.name() === 'add')!.commands.map((command) => command.name()))
@@ -60,6 +60,11 @@ const scenarios: {
     expected: object;
     missingPort: string;
 }[] = [
+    {
+        name: 'create-process-instance', args: ['create-process-instance', '--id', 'p', '--version', '-1', '--variables', '{}', '--profile', 'local'],
+        dependencies: (createProcessInstance) => ({ createProcessInstanceInPort: { createProcessInstance } }),
+        expected: { id: 'p', version: '-1', variables: '{}', profile: 'local' }, missingPort: 'CreateProcessInstanceInPort',
+    },
     {
         name: 'migration-monitor', args: ['migration-monitor', '--profile', 'local'],
         dependencies: (monitorMigration) => ({ migrationMonitorInPort: { monitorMigration } }),
