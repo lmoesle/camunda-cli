@@ -4,10 +4,11 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 
 describe('migration executable error boundary', () => {
-    test('drains backpressured stdout and stderr before a failed batch exits', async () => {
+    test.each(['migration', 'addVariables'])('%s drains backpressured stdout and stderr before a failed batch exits', async (feature) => {
         const home = await fs.mkdtemp(path.join(tmpdir(), 'cli-migration-pipes-'));
         const size = 2 * 1024 * 1024;
-        const summary = 'Migrated 1 process instance(s). 1 failed.';
+        const summary = feature === 'migration' ? 'Migrated 1 process instance(s). 1 failed.' : 'Variable updates completed: 1 succeeded, 1 failed.';
+        const failure = feature === 'migration' ? 'MigrationBatchFailure' : 'AddVariablesBatchFailure';
         // Load current sources, not dist. Replace only bootstrap; execute the real bin handler and batch error class.
         const script = `
             const fs = require('node:fs');
@@ -16,7 +17,7 @@ describe('migration executable error boundary', () => {
             require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(
                 fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }
             ).outputText, filename);
-            const { MigrationBatchFailure } = require(${JSON.stringify(path.resolve(__dirname, '../src/domain/migration.ts'))});
+            const { ${failure} } = require(${JSON.stringify(path.resolve(__dirname, `../src/domain/${feature}.ts`))});
             const load = Module._load;
             Module._load = function(request, ...args) {
                 if (request === '../bootstrap/camundaCli') return { runDefaultCamundaCli: async () => {
@@ -28,7 +29,7 @@ describe('migration executable error boundary', () => {
                     }, error => error ? reject(error) : resolve()));
                     // This runs after the handler's rejection microtask, unless process.exit truncates the streams.
                     setImmediate(() => process.send({ handled: true }, () => process.disconnect()));
-                    throw new MigrationBatchFailure(1, 1);
+                    throw new ${failure}(1, 1);
                 } };
                 return load.call(this, request, ...args);
             };
@@ -140,5 +141,27 @@ describe('migration executable error boundary', () => {
         expect(output).not.toHaveBeenCalled();
         expect(exit).toHaveBeenCalledTimes(1);
         expect(exit).toHaveBeenCalledWith(1);
+    });
+
+    test.each(['partial failure', 'all failure', 'success'])('add-variables %s exits without duplicate diagnostics', async (scenario) => {
+        const { AddVariablesUseCase } = await import('../src/application/usecases/addVariablesUseCase');
+        const { ConsoleAddVariablesPresenter } = await import('../src/adapter/out/consoleAddVariablesPresenter');
+        const output = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const exit = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+        const update = jest.fn(async (key: string) => {
+            if (scenario === 'all failure' || (scenario === 'partial failure' && key === '1')) throw new Error('HTTP 403 dummy-secret');
+        });
+        const usecase = new AddVariablesUseCase({ getProfile: () => ({ name: 'dummy', baseUrl: 'http://gateway.example' }) },
+            { connect: async () => ({ update }) }, new ConsoleAddVariablesPresenter());
+        await runExecutable(() => usecase.addVariables({ profile: 'dummy', processInstances: '["1","2"]', variables: '{}' }));
+        const failed = scenario === 'all failure' ? 2 : scenario === 'partial failure' ? 1 : 0;
+        expect(update.mock.calls.map(([key]) => key)).toEqual(['1', '2']);
+        expect(output).toHaveBeenLastCalledWith(`Variable updates completed: ${2 - failed} succeeded, ${failed} failed.`);
+        expect(output).toHaveBeenCalledTimes(3 - failed);
+        expect(diagnostic).toHaveBeenCalledTimes(failed);
+        expect(JSON.stringify(diagnostic.mock.calls)).not.toContain('dummy-secret');
+        expect(exit).not.toHaveBeenCalled();
+        expect(process.exitCode).toBe(failed ? 1 : undefined);
     });
 });

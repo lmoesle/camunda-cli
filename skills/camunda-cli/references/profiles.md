@@ -53,7 +53,7 @@ or authentication.
 
 Use HTTP(S) service roots with any required SaaS cluster ID or reverse-proxy
 prefix. Do not embed credentials, query parameters, or fragments. Gateway
-commands (`create-process-instance`, `deploy`, `incident retry`, and the gateway
+commands (`add-variables`, `create-process-instance`, `deploy`, `incident retry`, and the gateway
 part of `migrate`) use `baseUrl`; Operate commands use `operateUrl`. They do not fall
 back to `zeebeUrl`. For migration, both roots must address the same cluster.
 
@@ -62,7 +62,7 @@ back to `zeebeUrl`. For migration, both roots must address the same cluster.
 | Command | Authentication |
 | --- | --- |
 | `api`, `incidents`, `migration-monitor` | Require `--client-id`, `--client-secret`, and `--oauth-url` unless the profile sets `noAuth: true`. No Basic or cookie mode. |
-| `create-process-instance`, `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
+| `add-variables`, `create-process-instance`, `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
 | `api ls`, help/version, `create-migration-bundle` | No cluster connection or profile needed. Bundling still writes a local file. |
 
 When `noAuth` is false or omitted, supply all OAuth credential fields together; partial or blank configuration
@@ -83,7 +83,7 @@ Use `noAuth: true` only for services intentionally configured without authentica
 even partial or malformed ones. All cluster command families skip OAuth requests
 and send no authentication headers. Required service URL validation still applies.
 `noAuth: false` or an omitted field preserves existing behavior, including implicit
-anonymous create-process-instance, deploy, retry, and Self-Managed migrate with no OAuth fields.
+anonymous add-variables, create-process-instance, deploy, retry, and Self-Managed migrate with no OAuth fields.
 
 Creation uses a fresh client-credentials token per invocation with the selected
 profile's gateway audience. Literal `noAuth: true` skips that token request and

@@ -1,4 +1,12 @@
 export { createCamundaCli, runCamundaCli } from './adapter/in/camundaCliAdapter';
+export { AddVariablesUseCase } from './application/usecases/addVariablesUseCase';
+export { AxiosAddVariablesAdapter } from './adapter/out/axiosAddVariablesAdapter';
+export { ConsoleAddVariablesPresenter } from './adapter/out/consoleAddVariablesPresenter';
+export { processInstanceKeys, AddVariablesFailure, AddVariablesBatchFailure } from './domain/addVariables';
+export type { AddVariablesCommand, AddVariablesInPort } from './application/ports/in/addVariablesInPort';
+export type { AddVariablesOutPort, AddVariablesSession } from './application/ports/out/addVariablesOutPort';
+export type { AddVariablesProfileOutPort } from './application/ports/out/addVariablesProfileOutPort';
+export type { ShowAddVariablesOutPort } from './application/ports/out/showAddVariablesOutPort';
 export { CreateProcessInstanceUseCase } from './application/usecases/createProcessInstanceUseCase';
 export { AxiosProcessInstanceAdapter } from './adapter/out/axiosProcessInstanceAdapter';
 export { ConsoleProcessInstancePresenter } from './adapter/out/consoleProcessInstancePresenter';
