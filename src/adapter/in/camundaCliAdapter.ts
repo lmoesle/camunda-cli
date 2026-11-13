@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { AddVariablesCommand, AddVariablesInPort } from '../../application/ports/in/addVariablesInPort';
 import { CreateProcessInstanceCommand, CreateProcessInstanceInPort } from '../../application/ports/in/createProcessInstanceInPort';
 import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/addProfileInPort';
 import { ListIncidentsCommand, ListIncidentsInPort } from '../../application/ports/in/listIncidentsInPort';
@@ -16,6 +17,7 @@ const cliVersion = typeof CAMUNDA_CLI_VERSION === 'string'
     : process.env.npm_package_version ?? '0.1.0';
 
 export interface CamundaCliDependencies {
+    addVariablesInPort?: AddVariablesInPort;
     createProcessInstanceInPort?: CreateProcessInstanceInPort;
     addProfileInPort?: AddProfileInPort;
     listIncidentsInPort?: ListIncidentsInPort;
@@ -37,6 +39,16 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         // Let child commands own their options, including process --version.
         .enablePositionalOptions()
         .version(dependencies.version ?? cliVersion);
+
+    program.command('add-variables')
+        .description('Upsert variables in each supplied process instance root scope (Camunda 8.7)')
+        .requiredOption('--profile <profile>', 'stored gateway profile name')
+        .requiredOption('--process-instances <json>', 'nonempty inline JSON array of process instance key strings')
+        .requiredOption('--variables <json>', 'inline JSON object to upsert (no deep merge)')
+        .action(async (options: AddVariablesCommand) => {
+            if (!dependencies.addVariablesInPort) throw new Error('The add-variables command requires an AddVariablesInPort dependency.');
+            await dependencies.addVariablesInPort.addVariables(options);
+        });
 
     program.command('create-process-instance')
         .description('Create a Camunda 8.7 process instance without waiting for completion')

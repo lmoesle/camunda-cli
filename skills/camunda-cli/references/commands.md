@@ -24,6 +24,7 @@ values containing spaces. Every cluster command requires explicit
 
 | Command syntax | Purpose and cautions |
 | --- | --- |
+| `add-variables --profile <profile> --process-instances <json> --variables <json>` | Upsert variables at supplied process instance root scopes. Mutates the cluster; obtain permission first. All three flags are required. |
 | `create-process-instance --id <process-definition-id> --version <version> --variables <json> --profile <profile>` | Create one instance through the gateway, without waiting for completion. Mutates the cluster; obtain permission first. All four flags are required. |
 | `api ls` | Offline catalogue of 20 supported read-only Operate operations; accepts neither request nor profile. |
 | `api <operationId> <request-json> --profile <name>` | Execute a supported read-only Operate operation; see [API usage](api.md). Inline request required. POST searches are read-only. |
@@ -34,6 +35,22 @@ values containing spaces. Every cluster command requires explicit
 | `migrate --profile <name> --migrationPlan <json-or-path>` | Migrate ACTIVE instances of selected source definitions, including instances with incidents. Mutates the cluster. Capital `P` matters; no `--migration-plan` alias. |
 | `create-migration-bundle --sourceDir <directory> [--target <file>]` | Recursively combine local migration plans; no profile or cluster required. Writes/replaces the target file. Capital `D` matters. |
 | `incident retry --incident <incidentKey> --job <jobKey> --profile <name>` | Set the job's retries to 3, then request incident resolution through the gateway. Mutates the cluster; does not use Operate. |
+
+## Variable update boundaries
+
+Ask the user for permission for the target instances and variable changes first:
+
+```sh
+camunda-cli add-variables --profile local --process-instances '["9007199254740993","9007199254740994"]' --variables '{"var1":"test"}'
+```
+
+`--process-instances` requires a nonempty inline JSON array of strings. Each key
+must be a positive base-10 signed-int64 identifier (`1`–`9223372036854775807`).
+The CLI trims key strings, removes leading zeros, rejects normalized duplicates,
+and preserves input order. `--variables` requires a strict inline JSON object
+with quoted keys, not a file, array, null, or primitive; `'{}'` is valid. Nested
+JSON/null values, large numbers, and ordinary marker-like objects retain their
+values. All inputs validate before profile lookup or network requests.
 
 ## Process instance creation boundaries
 

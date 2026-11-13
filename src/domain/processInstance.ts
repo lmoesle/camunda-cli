@@ -1,4 +1,4 @@
-import { LosslessNumber, parse } from 'lossless-json';
+import { parseVariables } from './variables';
 
 export interface ProcessInstanceRequest {
     processDefinitionId: string;
@@ -12,13 +12,7 @@ export function processInstanceRequest(id: string, version: string, variables: s
     if (!/^(?:-1|\d+)$/.test(text) || (text !== '-1' && (BigInt(text) < 1n || BigInt(text) > 2147483647n))) {
         throw new Error('The process version must be a decimal integer from 1 to 2147483647, or -1 for latest.');
     }
-    let value: unknown;
-    try { value = typeof variables === 'string' ? parse(variables) : undefined; }
-    catch { throw new Error('Variables must be an inline JSON object.'); }
-    if (value === null || typeof value !== 'object' || Array.isArray(value) || value instanceof LosslessNumber) {
-        throw new Error('Variables must be an inline JSON object.');
-    }
-    return { processDefinitionId: id, processDefinitionVersion: Number(text), variables: value as Record<string, unknown> };
+    return { processDefinitionId: id, processDefinitionVersion: Number(text), variables: parseVariables(variables) };
 }
 
 // Only sanitized diagnostics may cross the adapter boundary.

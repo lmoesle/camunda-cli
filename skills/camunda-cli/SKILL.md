@@ -1,6 +1,6 @@
 ---
 name: camunda-cli
-description: Discover and use the camunda-cli command-line tool to query Camunda 8.7 Operate through its pinned API catalogue, configure connection profiles, inspect incidents, create process instances, deploy resources, and manage migrations or incident retries. Use for CLI usage, not CLI development.
+description: Discover and use the camunda-cli command-line tool to query Camunda 8.7 Operate through its pinned API catalogue, configure connection profiles, inspect incidents, create process instances, upsert process variables, deploy resources, and manage migrations or incident retries. Use for CLI usage, not CLI development.
 ---
 
 # Use camunda-cli
@@ -9,7 +9,7 @@ Use **Node.js 24 or newer** and the package **`@lmoesle/camunda-cli`**.
 This CLI targets Camunda 8.7; its `api` command exposes the pinned Operate 8.7
 read-only API catalogue, not arbitrary Camunda endpoints or newer Orchestration Cluster APIs.
 
-Before running any of the commands `create-process-instance`, `deploy`, `migrate` or `incident retry` ask the user for permission.
+Before running any of the commands `add-variables`, `create-process-instance`, `deploy`, `migrate` or `incident retry` ask the user for permission.
 
 ## Discover before executing
 
@@ -41,7 +41,7 @@ Before running any of the commands `create-process-instance`, `deploy`, `migrate
    [profiles and authentication safety](references/profiles.md). Do not print
    or attach the profile store, secrets, or access tokens.
 5. Prefer read-only inspection. Before a mutation, obtain explicit user
-   authorization for the target and action. Create-process-instance, deploy, migrate, incident retry,
+   authorization for the target and action. Add-variables, create-process-instance, deploy, migrate, incident retry,
    and API mutations have **no dry-run or confirmation prompt**.
 6. Report the command, target, result, and limits without credentials or
    sensitive response data. Distinguish one API response page from a complete
@@ -64,6 +64,26 @@ definition's BPMN XML, respectively. `xmlByKey` needs a **definition** key,
 not an instance key. Search uses POST but does not mutate state.
 Execution requires both inline request JSON and `--profile`; `api ls` accepts
 neither. XML appears as a JSON string, not raw XML.
+
+## Update process variables
+
+Only after explicit authorization for the target instances and variable changes:
+
+```sh
+camunda-cli add-variables --profile local --process-instances '["9007199254740993"]' --variables '{"var1":"test"}'
+```
+
+All three flags are required. Supply a nonempty inline JSON array of positive
+signed-int64 process instance key strings and a strict JSON object with quoted
+keys (`'{}'` is valid). The CLI validates all inputs and normalized duplicates
+before I/O. It upserts named variables at each instance's root scope, preserving
+other names but replacing supplied values without deep merge. It does not verify
+root kind or ACTIVE state; do not supply variable, definition, or child keys.
+Updates run sequentially, continue after individual failures, and print totals;
+any failure exits nonzero. Successful updates stay committed. No automatic retry,
+rollback, incident resolution, or completion claim applies. Check cluster state
+before rerunning uncertain outcomes, and protect sensitive variable values.
+See [command boundaries](references/commands.md#variable-update-boundaries).
 
 ## Create a process instance
 

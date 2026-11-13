@@ -4,7 +4,7 @@ import { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import axios from 'axios';
-import { AxiosProcessInstanceAdapter } from '../src';
+import { AxiosAddVariablesAdapter, AxiosProcessInstanceAdapter } from '../src';
 import {
     AxiosDeploymentAdapter, AxiosIncidentAdapter, AxiosIncidentRetryAdapter, AxiosMigrationAdapter,
     AxiosMigrationMonitorAdapter, AxiosOperateApiAdapter, createCamundaCli, createDefaultCamundaCli,
@@ -246,13 +246,25 @@ describe('anonymous wire transport', () => {
         anonymousOnly();
     });
 
-    test.each(['create', 'api', 'incidents', 'monitor', 'deploy', 'retry', 'migrate'])('%s never falls back to OAuth after 401/403', async (family) => {
+    test('variable updates strip inherited credentials on injected HTTP instances', async () => {
+        responses.push({ status: 204 });
+        const http = pollutedHttp();
+        const session = await new AxiosAddVariablesAdapter(http).connect(restConnection(profile, 'add-variables'));
+        await session.update('9007199254740993', {});
+        expect(received.map((call) => call.path)).toEqual(['/v2/element-instances/9007199254740993/variables']);
+        anonymousOnly();
+        expect(http.defaults.auth?.username).toBe('dummy');
+        expect(http.defaults.headers.common.Authorization).toBe('Bearer stale');
+    });
+
+    test.each(['variables', 'create', 'api', 'incidents', 'monitor', 'deploy', 'retry', 'migrate'])('%s never falls back to OAuth after 401/403', async (family) => {
         for (const status of [401, 403]) {
             received = [];
             responses.push({ status });
             const http = pollutedHttp();
             const send = async () => {
                 switch (family) {
+                case 'variables': return (await new AxiosAddVariablesAdapter(http).connect(restConnection(profile, 'add-variables'))).update('1', {});
                 case 'create': return (await new AxiosProcessInstanceAdapter(http).connect(restConnection(profile, 'create-process-instance')))
                     .create({ processDefinitionId: 'p', processDefinitionVersion: 1, variables: {} });
                 case 'api': return new AxiosOperateApiAdapter(http).execute(operateConnection(profile, 'api'), request());
