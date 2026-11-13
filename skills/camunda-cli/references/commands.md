@@ -12,8 +12,9 @@ camunda-cli incident retry --help
 camunda-cli incidents --help
 ```
 
-All commands accept `-h, --help`. Only the root accepts `-V, --version`
-(uppercase `V`); there is no `version` subcommand or lowercase `-v` alias.
+All commands accept `-h, --help`. The root accepts `-V, --version`
+(uppercase `V`) to print the CLI version; `create-process-instance --version`
+selects a process version. There is no `version` subcommand or lowercase `-v` alias.
 `help [command]` covers direct children; use nested help for subcommands.
 `add` and `incident` are groups, not standalone actions.
 
@@ -23,6 +24,7 @@ values containing spaces. Every cluster command requires explicit
 
 | Command syntax | Purpose and cautions |
 | --- | --- |
+| `create-process-instance --id <process-definition-id> --version <version> --variables <json> --profile <profile>` | Create one instance through the gateway, without waiting for completion. Mutates the cluster; obtain permission first. All four flags are required. |
 | `api ls` | Offline catalogue of 20 supported read-only Operate operations; accepts neither request nor profile. |
 | `api <operationId> <request-json> --profile <name>` | Execute a supported read-only Operate operation; see [API usage](api.md). Inline request required. POST searches are read-only. |
 | `add profile --name <name> --base-url <url> [options]` | Store connection settings; see [profiles](profiles.md). Writes plaintext credentials locally, without testing them. |
@@ -32,6 +34,32 @@ values containing spaces. Every cluster command requires explicit
 | `migrate --profile <name> --migrationPlan <json-or-path>` | Migrate ACTIVE instances of selected source definitions, including instances with incidents. Mutates the cluster. Capital `P` matters; no `--migration-plan` alias. |
 | `create-migration-bundle --sourceDir <directory> [--target <file>]` | Recursively combine local migration plans; no profile or cluster required. Writes/replaces the target file. Capital `D` matters. |
 | `incident retry --incident <incidentKey> --job <jobKey> --profile <name>` | Set the job's retries to 3, then request incident resolution through the gateway. Mutates the cluster; does not use Operate. |
+
+## Process instance creation boundaries
+
+Ask the user for permission before creation. For example, after authorization:
+
+```sh
+camunda-cli create-process-instance --id order-process --version -1 --variables '{"orderId":"A-123"}' --profile local
+```
+
+Use the exact nonblank BPMN process ID, not a numeric definition key. The CLI
+preserves ID bytes, including exterior whitespace. Version accepts a decimal
+integer `1`–`2147483647` or `-1` for latest, with exterior whitespace trimmed.
+It rejects version tags, `v1`, zero, other negatives, fractions, hex, and exponents.
+Variables must be an inline JSON object, including `'{}'`, not a file, array,
+null, or primitive. Nested JSON and large numbers retain precision. Inputs
+validate before profile lookup or network requests; keep sensitive variables out
+of shell history, process listings, and logs.
+
+The selected profile supplies gateway `baseUrl` and authentication, not Operate
+or `zeebeUrl`; proxy/cluster prefixes and an existing `/v2` remain intact. The
+single creation POST sends `processDefinitionId`, `processDefinitionVersion`,
+and `variables`, without waiting for completion. No custom tenant selection is
+available. Requests time out after 30 seconds, never follow redirects, and never
+automatically retry. Success prints the exact created instance key, not a
+completion claim. Check cluster state before rerunning failed or uncertain
+creation requests to avoid duplicate instances.
 
 ## Migration monitor boundaries
 
