@@ -10,13 +10,14 @@ camunda-cli api --help
 camunda-cli add profile --help
 camunda-cli incident retry --help
 camunda-cli incidents --help
+camunda-cli process-instances get --help
 ```
 
 All commands accept `-h, --help`. The root accepts `-V, --version`
 (uppercase `V`) to print the CLI version; `create-process-instance --version`
 selects a process version. There is no `version` subcommand or lowercase `-v` alias.
 `help [command]` covers direct children; use nested help for subcommands.
-`add` and `incident` are groups, not standalone actions.
+`add`, `incident`, and `process-instances` are groups, not standalone actions.
 
 In syntax below, replace `<...>` and omit optional `[...]` brackets. Quote
 values containing spaces. Every cluster command requires explicit
@@ -30,11 +31,50 @@ values containing spaces. Every cluster command requires explicit
 | `api <operationId> <request-json> --profile <name>` | Execute a supported read-only Operate operation; see [API usage](api.md). Inline request required. POST searches are read-only. |
 | `add profile --name <name> --base-url <url> [options]` | Store connection settings; see [profiles](profiles.md). Writes plaintext credentials locally, without testing them. |
 | `incidents --profile <name> [--json]` | List all visible ACTIVE incidents through Operate. Requires OAuth unless `noAuth: true`. Default output is a table; JSON key fields are decimal strings to preserve precision. No process or tenant filter; non-job incidents have no job key. |
+| `process-instances get --profile <name> [--filter <json>] [--json]` | Read all visible ACTIVE instances, including those with incidents. Default table skips variable loading; JSON includes all variable scopes and full values. |
 | `migration-monitor --profile <name> [--json]` | One-shot read-only Camunda 8.7 report of processes with ACTIVE instances older than the latest visible deployed numeric version (even if that version has no instances). Counts incident-bearing ACTIVE instances. Default table shows name, BPMN process ID, latest version, total active count across versions, and Number of outdated instances (total active instances on older versions, excluding the latest); separates tenants. JSON includes counts per outdated version. Never migrates. |
 | `deploy <path> --profile <name> [-r\|--recursive]` | Deploy eligible local files independently. Mutates the cluster. |
 | `migrate --profile <name> --migrationPlan <json-or-path>` | Migrate ACTIVE instances of selected source definitions, including instances with incidents. Mutates the cluster. Capital `P` matters; no `--migration-plan` alias. |
 | `create-migration-bundle --sourceDir <directory> [--target <file>]` | Recursively combine local migration plans; no profile or cluster required. Writes/replaces the target file. Capital `D` matters. |
 | `incident retry --incident <incidentKey> --job <jobKey> --profile <name>` | Set the job's retries to 3, then request incident resolution through the gateway. Mutates the cluster; does not use Operate. |
+
+## Process instance query boundaries
+
+```sh
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993"}' --json
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order"}'
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order","activity":"reviewTask"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993","processDefinition":"order","activity":"reviewTask"}' --json
+```
+
+Omit `--filter` or use `{}` for all ACTIVE instances. All supplied filters combine
+with **AND**; only these keys are accepted:
+
+- `process-instance`: positive decimal signed-int64 string, never a JSON number.
+  The CLI trims it and normalizes leading zeros.
+- `processDefinition`: exact BPMN process ID (`bpmnProcessId`), not a numeric
+  definition key or display name. Matches all visible versions and tenants.
+- `activity`: exact BPMN flow node ID, **requires `processDefinition`**, even with
+  an instance key. Matches currently ACTIVE nodes as indexed, not historical
+  completed/terminated execution.
+
+Definition/activity IDs must be nonblank strings and retain their exact bytes.
+Validation runs before cached profile lookup or network requests, not startup
+profile file loading. Filtering never includes non-ACTIVE instances;
+incident-bearing ACTIVE nodes/instances count. Multiple executions of the same
+activity never duplicate instance rows. Unknown combinations return no matches.
+Activity filtering performs one sequential existence read per candidate
+instance; only selected instances load variables in JSON mode.
+
+Instance searches paginate until empty; JSON additionally paginates every
+instance's variables across all scopes. Keys are exact decimal strings.
+Each instance has `variables: []` when none exist; same-name variables in
+different scopes remain separate entries with key and scope identity. Variable
+`value` is the raw JSON-encoded string returned by Operate, not a decoded value.
+Truncated values require detail retrieval; any failed or inconsistent response
+aborts without publishing partial results. JSON prints `[]` for no matches.
+The default table skips variables. Protect JSON output: it can contain secrets.
+Operate is eventually consistent; this listing is not an atomic snapshot.
 
 ## Variable update boundaries
 

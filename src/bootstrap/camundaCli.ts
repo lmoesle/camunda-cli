@@ -34,6 +34,9 @@ import { operateMetadata } from '../adapter/out/operateApiSpec';
 import { MigrationMonitorUseCase } from '../application/usecases/migrationMonitorUseCase';
 import { AxiosMigrationMonitorAdapter } from '../adapter/out/axiosMigrationMonitorAdapter';
 import { ConsoleMigrationMonitorPresenter } from '../adapter/out/consoleMigrationMonitorPresenter';
+import { GetProcessInstancesUseCase } from '../application/usecases/getProcessInstancesUseCase';
+import { AxiosProcessInstanceSearchAdapter } from '../adapter/out/axiosProcessInstanceSearchAdapter';
+import { ConsoleProcessInstancesPresenter } from '../adapter/out/consoleProcessInstancesPresenter';
 
 export interface CamundaCliBootstrapOptions {
     writeLine?: (line: string) => void;
@@ -75,6 +78,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     let initialization: Promise<void> | undefined;
     const initialize = (): Promise<void> => initialization ??= loadProfilesInPort.loadProfiles();
     const program = createCamundaCli({
+        getProcessInstancesInPort: new GetProcessInstancesUseCase(cache, new AxiosProcessInstanceSearchAdapter(), new ConsoleProcessInstancesPresenter(writeLine)),
         addVariablesInPort: new AddVariablesUseCase(cache, new AxiosAddVariablesAdapter(), new ConsoleAddVariablesPresenter(writeLine, writeDiagnostic)),
         createProcessInstanceInPort: new CreateProcessInstanceUseCase(cache, new AxiosProcessInstanceAdapter(), new ConsoleProcessInstancePresenter(writeLine)),
         migrationMonitorInPort: new MigrationMonitorUseCase(cache, new AxiosMigrationMonitorAdapter(), new ConsoleMigrationMonitorPresenter(writeLine)),
@@ -92,7 +96,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        if (_parent === program) diagnosticCommand = ['add-variables', 'create-process-instance', 'api', 'incidents', 'incident', 'deploy', 'migrate', 'migration-monitor', 'create-migration-bundle'].includes(command.name());
+        if (_parent === program) diagnosticCommand = ['add-variables', 'create-process-instance', 'api', 'process-instances', 'incidents', 'incident', 'deploy', 'migrate', 'migration-monitor', 'create-migration-bundle'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {

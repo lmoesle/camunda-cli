@@ -9,6 +9,7 @@ import { RetryIncidentCommand, RetryIncidentInPort } from '../../application/por
 import { CreateMigrationBundleCommand, CreateMigrationBundleInPort } from '../../application/ports/in/createMigrationBundleInPort';
 import { OperateApiInPort } from '../../application/ports/in/operateApiInPort';
 import { MigrationMonitorCommand, MigrationMonitorInPort } from '../../application/ports/in/migrationMonitorInPort';
+import { GetProcessInstancesCommand, GetProcessInstancesInPort } from '../../application/ports/in/getProcessInstancesInPort';
 
 declare const CAMUNDA_CLI_VERSION: string | undefined;
 
@@ -17,6 +18,7 @@ const cliVersion = typeof CAMUNDA_CLI_VERSION === 'string'
     : process.env.npm_package_version ?? '0.1.0';
 
 export interface CamundaCliDependencies {
+    getProcessInstancesInPort?: GetProcessInstancesInPort;
     addVariablesInPort?: AddVariablesInPort;
     createProcessInstanceInPort?: CreateProcessInstanceInPort;
     addProfileInPort?: AddProfileInPort;
@@ -70,6 +72,18 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .action(async (usecase: string, requestJson: string | undefined, options: { profile?: string }) => {
             if (!dependencies.operateApiInPort) throw new Error('The api command requires an OperateApiInPort dependency.');
             await dependencies.operateApiInPort.invokeApi({ usecase, requestJson, ...options });
+        });
+
+    program.command('process-instances')
+        .description('Query Camunda 8.7 process instances (read-only)')
+        .command('get')
+        .description('List all ACTIVE process instances, including instances with incidents')
+        .requiredOption('--profile <name>', 'stored Operate profile name (required)')
+        .option('--filter <json>', 'AND filters: "process-instance" int64 key string, "processDefinition" BPMN process ID, "activity" ACTIVE flow node ID (requires processDefinition)')
+        .option('--json', 'print a JSON array including all variables and full JSON-encoded value strings')
+        .action(async (options: GetProcessInstancesCommand) => {
+            if (!dependencies.getProcessInstancesInPort) throw new Error('The process-instances get command requires a GetProcessInstancesInPort dependency.');
+            await dependencies.getProcessInstancesInPort.getProcessInstances(options);
         });
 
     program.command('migration-monitor')

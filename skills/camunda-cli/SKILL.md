@@ -1,6 +1,6 @@
 ---
 name: camunda-cli
-description: Discover and use the camunda-cli command-line tool to query Camunda 8.7 Operate through its pinned API catalogue, configure connection profiles, inspect incidents, create process instances, upsert process variables, deploy resources, and manage migrations or incident retries. Use for CLI usage, not CLI development.
+description: Discover and use the camunda-cli command-line tool to query Camunda 8.7 Operate through its pinned API catalogue, list ACTIVE process instances and their variables, configure connection profiles, inspect incidents, create process instances, upsert process variables, deploy resources, and manage migrations or incident retries. Use for CLI usage, not CLI development.
 ---
 
 # Use camunda-cli
@@ -30,6 +30,7 @@ Before running any of the commands `add-variables`, `create-process-instance`, `
    camunda-cli api --help
    camunda-cli add profile --help
    camunda-cli incidents --help
+   camunda-cli process-instances get --help
    ```
 
    See [command discovery and catalogue](references/commands.md) for the
@@ -64,6 +65,25 @@ definition's BPMN XML, respectively. `xmlByKey` needs a **definition** key,
 not an instance key. Search uses POST but does not mutate state.
 Execution requires both inline request JSON and `--profile`; `api ls` accepts
 neither. XML appears as a JSON string, not raw XML.
+
+## List ACTIVE process instances
+
+```sh
+camunda-cli process-instances get --profile local
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order"}'
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order","activity":"reviewTask"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993","processDefinition":"order","activity":"reviewTask"}' --json
+```
+
+All filters combine with AND and remain ACTIVE-only, including incidents.
+`processDefinition` is the exact BPMN process ID, not a definition key/name, across
+all visible versions and tenants. `activity` requires `processDefinition` and
+selects an exact currently ACTIVE flow node ID, not history. Multiple executions
+never duplicate instance rows; unknown combinations return no matches.
+JSON paginates all variables across scopes and preserves raw JSON-encoded value
+strings; it may expose secrets. The table skips variables. See
+[query boundaries](references/commands.md#process-instance-query-boundaries).
 
 ## Update process variables
 
