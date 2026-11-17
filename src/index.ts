@@ -1,4 +1,15 @@
 export { createCamundaCli, runCamundaCli } from './adapter/in/camundaCliAdapter';
+export { ListUserTasksUseCase } from './application/usecases/listUserTasksUseCase';
+export { CompleteUserTaskUseCase } from './application/usecases/completeUserTaskUseCase';
+export { AxiosUserTaskAdapter } from './adapter/out/axiosUserTaskAdapter';
+export { ConsoleUserTasksPresenter } from './adapter/out/consoleUserTasksPresenter';
+export { userTaskKey, userTaskFilter, UserTaskFailure } from './domain/userTask';
+export type { UserTask } from './domain/userTask';
+export type { ListUserTasksCommand, ListUserTasksInPort } from './application/ports/in/listUserTasksInPort';
+export type { CompleteUserTaskCommand, CompleteUserTaskInPort } from './application/ports/in/completeUserTaskInPort';
+export type { UserTaskOutPort, UserTaskSession } from './application/ports/out/userTaskOutPort';
+export type { UserTaskProfileOutPort } from './application/ports/out/userTaskProfileOutPort';
+export type { ShowUserTasksOutPort } from './application/ports/out/showUserTasksOutPort';
 export { AddVariablesUseCase } from './application/usecases/addVariablesUseCase';
 export { AxiosAddVariablesAdapter } from './adapter/out/axiosAddVariablesAdapter';
 export { ConsoleAddVariablesPresenter } from './adapter/out/consoleAddVariablesPresenter';

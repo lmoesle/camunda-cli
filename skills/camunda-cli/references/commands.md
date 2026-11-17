@@ -24,6 +24,8 @@ values containing spaces. Every cluster command requires explicit
 
 | Command syntax | Purpose and cautions |
 | --- | --- |
+| `usertasks get --profile <profile> [--filter process-instance <key>] [--json]` | Read all native Camunda 8.7 CREATED tasks (assigned or unassigned). Standard SaaS URLs select Tasklist V1 with Tasklist audience/permission; Self-Managed gateway `/v2` requires Query API alpha opt-in. Follows all pages; default table or one JSON array, `[]` if empty. |
+| `usertask <id> complete --profile <profile> --variablen <json>` | Manual execution only: complete one native task through gateway V2 with its configured audience, never Tasklist. Required inline variables object (`'{}'` is valid). ID precedes action. No confirmation, assignment, or retry; verify uncertain outcomes before rerunning. Do not execute under the skill's read-only boundary. |
 | `add-variables --profile <profile> --process-instances <json> --variables <json>` | Upsert variables at supplied process instance root scopes. Mutates the cluster; obtain permission first. All three flags are required. |
 | `create-process-instance --id <process-definition-id> --version <version> --variables <json> --profile <profile>` | Create one instance through the gateway, without waiting for completion. Mutates the cluster; obtain permission first. All four flags are required. |
 | `api ls` | Offline catalogue of 20 supported read-only Operate operations; accepts neither request nor profile. |

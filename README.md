@@ -17,7 +17,7 @@ In usage blocks, `<...>` marks a value to replace and `[...]` marks optional inp
 do not type the brackets. Quote values containing spaces.
 All commands accept `-h, --help`. The root accepts `-V, --version` (uppercase `V`), which prints the CLI version.
 `--profile` is command-specific, with no default profile or `-p` alias.
-Add-variables, create-process-instance, deploy, migrate, and retry have no dry-run or confirmation prompt. Check your profile and inputs before running them. The `api` command supports only read-only cluster requests.
+Add-variables, create-process-instance, usertask completion, deploy, migrate, and retry have no dry-run or confirmation prompt. Check your profile and inputs before running them. The `api` command supports only read-only cluster requests.
 
 ### add profile
 
@@ -30,7 +30,7 @@ camunda-cli add profile --name <name> --base-url <url> [options]
 | Flag | Description |
 | --- | --- |
 | `--name <name>` | Required, unique, trimmed, case-sensitive name; duplicates fail rather than overwrite. |
-| `--base-url <url>` | Required gateway REST root for add-variables, create-process-instance, deploy, retry, and migrate. |
+| `--base-url <url>` | Required gateway REST root for usertasks, usertask completion, add-variables, create-process-instance, deploy, retry, and migrate. |
 | `--client-id <id>` | Optional OAuth client ID. |
 | `--client-secret <secret>` | Optional OAuth client secret, stored in cleartext. |
 | `--audience <audience>` | Optional gateway OAuth audience; also the legacy Operate fallback. |
@@ -50,8 +50,8 @@ Cluster commands do not fall back to `--zeebe-url` or environment settings.
 
 - **OAuth:** Supply all three of `--client-id`, `--client-secret`, and `--oauth-url`; partial or blank configuration fails at use. SaaS gateway commands require an audience, normally `zeebe.camunda.io`; SaaS Operate also requires an audience, normally `operate.camunda.io`.
   For a shared SaaS migration profile, set **both** `--audience` and `--operate-audience` and grant access to both APIs. Self-Managed OAuth can omit audiences; incidents and Self-Managed migration use `--audience` when no Operate override is present.
-- **No authentication:** Set the JSON boolean `noAuth: true`, or create a profile with `--no-auth`, for deliberately unauthenticated services. This is **not the default C8Run configuration**. All cluster command families (`add-variables`, `create-process-instance`, `api`, `incidents`, `migration-monitor`, `deploy`, `incident retry`, `migrate`) skip OAuth requests and send no authentication headers. Literal `true` overrides and ignores any retained OAuth settings, even partial or malformed ones. Required service URL validation still applies. Cookie and Basic authentication are not supported.
-- **Unchanged defaults:** `noAuth: false` or an omitted `noAuth` preserves existing authentication behavior. Add-variables, create-process-instance, deploy, retry, and Self-Managed migrate can still omit all OAuth fields (including audiences) for intentionally unauthenticated services; Operate-only commands otherwise require OAuth.
+- **No authentication:** Set the JSON boolean `noAuth: true`, or create a profile with `--no-auth`, for deliberately unauthenticated services. This is **not the default C8Run configuration**. All cluster command families (`usertasks`, `usertask`, `add-variables`, `create-process-instance`, `api`, `incidents`, `migration-monitor`, `deploy`, `incident retry`, `migrate`) skip OAuth requests and send no authentication headers. Literal `true` overrides and ignores any retained OAuth settings, even partial or malformed ones. Required service URL validation still applies. Cookie and Basic authentication are not supported.
+- **Unchanged defaults:** `noAuth: false` or an omitted `noAuth` preserves existing authentication behavior. Usertasks, usertask completion, add-variables, create-process-instance, deploy, retry, and Self-Managed migrate can still omit all OAuth fields (including audiences) for intentionally unauthenticated services; Operate-only commands otherwise require OAuth.
 
 For deliberately unauthenticated local services, create and select a profile:
 
@@ -107,9 +107,39 @@ Execution requires the selected profile's `operateUrl` and, unless `noAuth: true
 
 Stdout contains one pretty-printed JSON value: parsed JSON (including lossless int64 numbers), a JSON string for text/XML, or `null` for an empty response. Startup notices and errors go to stderr.
 
-`api` permits only explicitly reviewed operationId/method/path combinations: 12 GET reads and 8 read-only POST searches. OAuth also uses POST; neither authentication nor search changes cluster state. The upstream document and generated SDK retain all 21 operations, but `api ls` excludes deletion. The CLI rejects deletion and unapproved operations before parsing the request, looking up a profile, authenticating, or contacting the cluster. There is no override flag. For write, change, or delete support, [submit a feature request](https://github.com/lmoesle/camunda-cli/issues/new). Dedicated mutation commands include `add-variables`, `create-process-instance`, `deploy`, `migrate`, and `incident retry`; the camunda-cli agent skill must not execute them or use another HTTP client to bypass its read-only boundary.
+`api` permits only explicitly reviewed operationId/method/path combinations: 12 GET reads and 8 read-only POST searches. OAuth also uses POST; neither authentication nor search changes cluster state. The upstream document and generated SDK retain all 21 operations, but `api ls` excludes deletion. The CLI rejects deletion and unapproved operations before parsing the request, looking up a profile, authenticating, or contacting the cluster. There is no override flag. For write, change, or delete support, [submit a feature request](https://github.com/lmoesle/camunda-cli/issues/new). Dedicated mutation commands include `usertask <id> complete`, `add-variables`, `create-process-instance`, `deploy`, `migrate`, and `incident retry`; the camunda-cli agent skill must not execute them or use another HTTP client to bypass its read-only boundary.
 
 For provenance, licensing, and regeneration instructions, see [the pinned spec README](resources/operate-8.7/README.md). The checked-in Axios clients come from `@openapitools/openapi-generator-cli generate`. Normal builds and tests run offline without Java; regeneration requires Java and may download the pinned generator. Tests check all 20 supported generated operation dispatches against the vendored document and verify rejection of deletion and unapproved operations.
+
+### usertasks get
+
+List all open native Camunda 8.7 user tasks in the selected profile:
+
+```sh
+camunda-cli usertasks get --profile on-prem
+camunda-cli usertasks get --profile on-prem --filter process-instance 9007199254740993 --json
+```
+
+| Flag | Description |
+| --- | --- |
+| `--profile <profile>` | Required stored gateway profile; no default. |
+| `--filter process-instance <key>` | Optional, at most once. Restrict to one process instance. No other filters are supported. |
+| `--json` | Print only one JSON array, or `[]` when empty; default output is a table. |
+
+For standard SaaS gateway URLs, the CLI automatically lists native `CREATED` tasks
+through the regional Tasklist endpoint with audience `tasklist.camunda.io`.
+Grant the stored client [Tasklist permission](https://docs.camunda.io/docs/8.7/apis-tools/tasklist-api-rest/tasklist-api-rest-authentication/).
+Completion still uses the gateway and its configured audience. Self-Managed
+listing requires the [8.7 Query API alpha opt-in](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/specifications/query-user-tasks-alpha/).
+
+### usertask complete
+
+Complete one native user task with an inline variables object:
+
+```sh
+camunda-cli usertask 9007199254740993 complete --profile on-prem --variablen '{"vars":"alsJson"}'
+camunda-cli usertask 9007199254740993 complete --profile on-prem --variablen '{}'
+```
 
 ### add-variables
 

@@ -26,7 +26,7 @@ describe('supported CLI commands', () => {
         const writeLine = jest.fn();
         const program = overrideExits(runtime === 'default'
             ? createDefaultCamundaCli({ homeDirectory: home, writeLine }) : createCamundaCli({}));
-        expect(program.commands.map((command) => command.name())).toEqual(['add-variables', 'create-process-instance', 'api', 'migration-monitor', 'migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
+        expect(program.commands.map((command) => command.name())).toEqual(['usertasks', 'usertask', 'add-variables', 'create-process-instance', 'api', 'migration-monitor', 'migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
         expect(program.commands.find((command) => command.name() === 'incident')!.commands.map((command) => command.name()))
             .toEqual(['retry']);
         expect(program.commands.find((command) => command.name() === 'add')!.commands.map((command) => command.name()))
@@ -60,6 +60,16 @@ const scenarios: {
     expected: object;
     missingPort: string;
 }[] = [
+    {
+        name: 'usertasks get', args: ['usertasks', 'get', '--profile', 'on-prem', '--filter', 'process-instance', '123', '--json'],
+        dependencies: (listUserTasks) => ({ listUserTasksInPort: { listUserTasks } }),
+        expected: { profile: 'on-prem', processInstance: '123', json: true }, missingPort: 'ListUserTasksInPort',
+    },
+    {
+        name: 'usertask complete', args: ['usertask', '123', 'complete', '--profile', 'on-prem', '--variablen', '{}'],
+        dependencies: (completeUserTask) => ({ completeUserTaskInPort: { completeUserTask } }),
+        expected: { id: '123', profile: 'on-prem', variables: '{}' }, missingPort: 'CompleteUserTaskInPort',
+    },
     {
         name: 'add-variables', args: ['add-variables', '--profile', 'local', '--process-instances', '["1"]', '--variables', '{}'],
         dependencies: (addVariables) => ({ addVariablesInPort: { addVariables } }),
