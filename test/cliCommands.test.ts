@@ -26,7 +26,9 @@ describe('supported CLI commands', () => {
         const writeLine = jest.fn();
         const program = overrideExits(runtime === 'default'
             ? createDefaultCamundaCli({ homeDirectory: home, writeLine }) : createCamundaCli({}));
-        expect(program.commands.map((command) => command.name())).toEqual(['add-variables', 'create-process-instance', 'api', 'migration-monitor', 'migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
+        expect(program.commands.map((command) => command.name())).toEqual(['add-variables', 'create-process-instance', 'api', 'process-instances', 'migration-monitor', 'migrate', 'create-migration-bundle', 'deploy', 'incident', 'incidents', 'add']);
+        expect(program.commands.find((command) => command.name() === 'process-instances')!.commands.map((command) => command.name()))
+            .toEqual(['get']);
         expect(program.commands.find((command) => command.name() === 'incident')!.commands.map((command) => command.name()))
             .toEqual(['retry']);
         expect(program.commands.find((command) => command.name() === 'add')!.commands.map((command) => command.name()))
@@ -60,6 +62,13 @@ const scenarios: {
     expected: object;
     missingPort: string;
 }[] = [
+    ...[{}, { json: true }, { filter: '{}' }, { json: true, filter: '{"process-instance":"1"}' }].map((options) => ({
+        name: `process-instances get ${JSON.stringify(options)}`,
+        args: ['process-instances', 'get', '--profile', 'local', ...(options.json ? ['--json'] : []),
+            ...(options.filter ? ['--filter', options.filter] : [])],
+        dependencies: (getProcessInstances: jest.Mock) => ({ getProcessInstancesInPort: { getProcessInstances } }),
+        expected: { profile: 'local', ...options }, missingPort: 'GetProcessInstancesInPort',
+    })),
     {
         name: 'add-variables', args: ['add-variables', '--profile', 'local', '--process-instances', '["1"]', '--variables', '{}'],
         dependencies: (addVariables) => ({ addVariablesInPort: { addVariables } }),
