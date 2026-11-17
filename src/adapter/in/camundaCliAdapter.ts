@@ -1,4 +1,7 @@
-import { Command } from 'commander';
+import { Command, Option, InvalidArgumentError } from 'commander';
+import { ListUserTasksInPort } from '../../application/ports/in/listUserTasksInPort';
+import { CompleteUserTaskInPort } from '../../application/ports/in/completeUserTaskInPort';
+import { userTaskFilter } from '../../domain/userTask';
 import { AddVariablesCommand, AddVariablesInPort } from '../../application/ports/in/addVariablesInPort';
 import { CreateProcessInstanceCommand, CreateProcessInstanceInPort } from '../../application/ports/in/createProcessInstanceInPort';
 import { AddProfileCommand, AddProfileInPort } from '../../application/ports/in/addProfileInPort';
@@ -18,6 +21,8 @@ const cliVersion = typeof CAMUNDA_CLI_VERSION === 'string'
     : process.env.npm_package_version ?? '0.1.0';
 
 export interface CamundaCliDependencies {
+    listUserTasksInPort?: ListUserTasksInPort;
+    completeUserTaskInPort?: CompleteUserTaskInPort;
     getProcessInstancesInPort?: GetProcessInstancesInPort;
     addVariablesInPort?: AddVariablesInPort;
     createProcessInstanceInPort?: CreateProcessInstanceInPort;
@@ -41,6 +46,37 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         // Let child commands own their options, including process --version.
         .enablePositionalOptions()
         .version(dependencies.version ?? cliVersion);
+
+    program.command('usertasks')
+        .description('Inspect native Camunda 8.7 user tasks (SaaS: Tasklist; Self-Managed: Query API alpha opt-in)')
+        .command('get')
+        .description('List all CREATED user tasks, assigned or unassigned')
+        .argument('[key]', 'process instance key, only with --filter process-instance')
+        .requiredOption('--profile <profile>', 'stored gateway profile name')
+        .addOption(new Option('--filter <type>', 'process-instance <key> (optional, once)')
+            .argParser((value: string, previous?: string) => {
+                if (previous !== undefined) throw new InvalidArgumentError('Use --filter process-instance <key> exactly once.');
+                return value;
+            }))
+        .option('--json', 'print one JSON array instead of a table')
+        .action(async (key: string | undefined, options: { profile: string; filter?: string; json?: boolean }) => {
+            const processInstance = userTaskFilter(options.filter === undefined && key === undefined
+                ? undefined : [options.filter ?? '', ...(key === undefined ? [] : [key])]);
+            if (!dependencies.listUserTasksInPort) throw new Error('The usertasks get command requires a ListUserTasksInPort dependency.');
+            await dependencies.listUserTasksInPort.listUserTasks({ profile: options.profile, processInstance, json: options.json });
+        });
+
+    program.command('usertask')
+        .description('Complete a native Camunda 8.7 user task; no confirmation or automatic retry')
+        .argument('<id>', 'positive signed-int64 user task key')
+        .argument('<action>', 'complete')
+        .requiredOption('--profile <profile>', 'stored gateway profile name')
+        .requiredOption('--variablen <json>', 'inline JSON variables object ({} is valid)')
+        .action(async (id: string, action: string, options: { profile: string; variablen: string }) => {
+            if (action !== 'complete') throw new Error('The only supported usertask action is complete: usertask <id> complete.');
+            if (!dependencies.completeUserTaskInPort) throw new Error('The usertask complete command requires a CompleteUserTaskInPort dependency.');
+            await dependencies.completeUserTaskInPort.completeUserTask({ id, profile: options.profile, variables: options.variablen });
+        });
 
     program.command('add-variables')
         .description('Upsert variables in each supplied process instance root scope (Camunda 8.7)')

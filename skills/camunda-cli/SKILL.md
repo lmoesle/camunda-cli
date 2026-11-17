@@ -1,6 +1,6 @@
 ---
 name: camunda-cli
-description: Discover and use the camunda-cli command-line tool to query Camunda 8.7 Operate through its pinned API catalogue, list ACTIVE process instances and their variables, configure connection profiles, inspect incidents, create process instances, upsert process variables, deploy resources, and manage migrations or incident retries. Use for CLI usage, not CLI development.
+description: Discover and use the camunda-cli command-line tool to query Camunda 8.7 Operate through its pinned API catalogue, list ACTIVE process instances and their variables, inspect native user tasks and incidents, configure connection profiles, and discover dedicated mutation commands. Use for CLI usage, not CLI development.
 ---
 
 # Use camunda-cli
@@ -10,6 +10,8 @@ This CLI targets Camunda 8.7; its `api` command exposes the pinned Operate 8.7
 read-only API catalogue, not arbitrary Camunda endpoints or newer Orchestration Cluster APIs.
 
 Before running any of the commands `add-variables`, `create-process-instance`, `deploy`, `migrate` or `incident retry` ask the user for permission.
+Do not execute `usertask <id> complete` or bypass this mutation boundary with
+another HTTP client. Show its syntax to the user for manual execution instead.
 
 ## Discover before executing
 
@@ -30,6 +32,8 @@ Before running any of the commands `add-variables`, `create-process-instance`, `
    camunda-cli api --help
    camunda-cli add profile --help
    camunda-cli incidents --help
+   camunda-cli usertasks get --help
+   camunda-cli usertask --help
    camunda-cli process-instances get --help
    ```
 
@@ -65,6 +69,32 @@ definition's BPMN XML, respectively. `xmlByKey` needs a **definition** key,
 not an instance key. Search uses POST but does not mutate state.
 Execution requires both inline request JSON and `--profile`; `api ls` accepts
 neither. XML appears as a JSON string, not raw XML.
+
+## Native user tasks
+
+After profile verification, inspect all open (`CREATED`, assigned or unassigned)
+native Camunda 8.7 user tasks:
+
+```sh
+camunda-cli usertasks get --profile on-prem
+camunda-cli usertasks get --profile on-prem --filter process-instance 9007199254740993 --json
+```
+
+The optional filter accepts only `process-instance <key>`, once. Standard SaaS
+gateway URLs automatically select regional Tasklist V1 search with audience
+`tasklist.camunda.io`; grant the stored client Tasklist permission. Self-Managed
+gateway search requires the [8.7 alpha opt-in](https://docs.camunda.io/docs/8.7/apis-tools/camunda-api-rest/specifications/query-user-tasks-alpha/).
+The CLI follows all search pages and emits a table or one JSON array (`[]` if
+empty), never partial output after a page failure. This covers native Camunda
+user tasks only, not job-worker tasks.
+
+For manual execution only, completion syntax is
+`camunda-cli usertask <id> complete --profile on-prem --variablen '{}'`.
+ID precedes action; both options are required and `--variablen` accepts a strict
+inline JSON object. Completion always uses gateway V2 and its configured
+audience, not Tasklist. The command sends one mutation without confirmation,
+assignment, or automatic retry. Verify cluster state before rerunning an
+uncertain completion. Never execute it under this skill's read-only boundary.
 
 ## List ACTIVE process instances
 

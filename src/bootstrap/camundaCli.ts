@@ -1,4 +1,8 @@
 import { Command } from 'commander';
+import { ListUserTasksUseCase } from '../application/usecases/listUserTasksUseCase';
+import { CompleteUserTaskUseCase } from '../application/usecases/completeUserTaskUseCase';
+import { AxiosUserTaskAdapter } from '../adapter/out/axiosUserTaskAdapter';
+import { ConsoleUserTasksPresenter } from '../adapter/out/consoleUserTasksPresenter';
 import { AddVariablesUseCase } from '../application/usecases/addVariablesUseCase';
 import { AxiosAddVariablesAdapter } from '../adapter/out/axiosAddVariablesAdapter';
 import { ConsoleAddVariablesPresenter } from '../adapter/out/consoleAddVariablesPresenter';
@@ -78,6 +82,8 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     let initialization: Promise<void> | undefined;
     const initialize = (): Promise<void> => initialization ??= loadProfilesInPort.loadProfiles();
     const program = createCamundaCli({
+        listUserTasksInPort: new ListUserTasksUseCase(cache, new AxiosUserTaskAdapter(), new ConsoleUserTasksPresenter(writeLine)),
+        completeUserTaskInPort: new CompleteUserTaskUseCase(cache, new AxiosUserTaskAdapter(), new ConsoleUserTasksPresenter(writeLine)),
         getProcessInstancesInPort: new GetProcessInstancesUseCase(cache, new AxiosProcessInstanceSearchAdapter(), new ConsoleProcessInstancesPresenter(writeLine)),
         addVariablesInPort: new AddVariablesUseCase(cache, new AxiosAddVariablesAdapter(), new ConsoleAddVariablesPresenter(writeLine, writeDiagnostic)),
         createProcessInstanceInPort: new CreateProcessInstanceUseCase(cache, new AxiosProcessInstanceAdapter(), new ConsoleProcessInstancePresenter(writeLine)),
@@ -96,7 +102,7 @@ function createRuntime(options: CamundaCliBootstrapOptions, deferNotices: boolea
     // Commander identifies the command before required-option checks and preAction.
     // Route startup diagnostics explicitly, without inspecting global process.argv.
     program.hook('preSubcommand', (_parent, command) => {
-        if (_parent === program) diagnosticCommand = ['add-variables', 'create-process-instance', 'api', 'process-instances', 'incidents', 'incident', 'deploy', 'migrate', 'migration-monitor', 'create-migration-bundle'].includes(command.name());
+        if (_parent === program) diagnosticCommand = ['usertasks', 'usertask', 'add-variables', 'create-process-instance', 'api', 'process-instances', 'incidents', 'incident', 'deploy', 'migrate', 'migration-monitor', 'create-migration-bundle'].includes(command.name());
         flushNotices();
     });
     if (deferNotices) {

@@ -53,16 +53,23 @@ or authentication.
 
 Use HTTP(S) service roots with any required SaaS cluster ID or reverse-proxy
 prefix. Do not embed credentials, query parameters, or fragments. Gateway
-commands (`add-variables`, `create-process-instance`, `deploy`, `incident retry`, and the gateway
+commands (`usertasks`, `usertask`, `add-variables`, `create-process-instance`, `deploy`, `incident retry`, and the gateway
 part of `migrate`) use `baseUrl`; Operate commands use `operateUrl`. They do not fall
 back to `zeebeUrl`. For migration, both roots must address the same cluster.
+
+For native user task listing only, canonical regional SaaS gateway URLs
+(`https://<region>.zeebe.camunda.io/<cluster-id>`) select the corresponding
+Tasklist V1 endpoint automatically. The same client credentials request audience
+`tasklist.camunda.io`; grant that client Tasklist permission. No new profile
+fields are needed. Custom/Self-Managed URLs retain gateway V2 alpha search.
+Completion always retains the original gateway URL and audience.
 
 ## Match authentication to the command
 
 | Command | Authentication |
 | --- | --- |
 | `api`, `process-instances get`, `incidents`, `migration-monitor` | Require `--client-id`, `--client-secret`, and `--oauth-url` unless the profile sets `noAuth: true`. No Basic or cookie mode. |
-| `add-variables`, `create-process-instance`, `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
+| `usertasks`, `usertask`, `add-variables`, `create-process-instance`, `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
 | `api ls`, help/version, `create-migration-bundle` | No cluster connection or profile needed. Bundling still writes a local file. |
 
 When `noAuth` is false or omitted, supply all OAuth credential fields together; partial or blank configuration
@@ -83,7 +90,7 @@ Use `noAuth: true` only for services intentionally configured without authentica
 even partial or malformed ones. All cluster command families skip OAuth requests
 and send no authentication headers. Required service URL validation still applies.
 `noAuth: false` or an omitted field preserves existing behavior, including implicit
-anonymous add-variables, create-process-instance, deploy, retry, and Self-Managed migrate with no OAuth fields.
+anonymous usertasks, usertask completion, add-variables, create-process-instance, deploy, retry, and Self-Managed migrate with no OAuth fields.
 
 Creation uses a fresh client-credentials token per invocation with the selected
 profile's gateway audience. Literal `noAuth: true` skips that token request and
