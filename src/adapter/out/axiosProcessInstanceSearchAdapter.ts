@@ -25,12 +25,20 @@ export class AxiosProcessInstanceSearchAdapter implements ProcessInstanceSearchO
             token = auth.access_token;
         }
         const basePath = connection.operateUrl.replace(/\/v1$/, '');
-        const instances = await this.search(http, basePath, token, 'search_1',
-            { state: 'ACTIVE', ...(query.key ? { key: new LosslessNumber(query.key) } : {}) }, (item) => {
+        const candidates = await this.search(http, basePath, token, 'search_1',
+            { state: 'ACTIVE', ...(query.key ? { key: new LosslessNumber(query.key) } : {}),
+                ...(query.processDefinition !== undefined ? { bpmnProcessId: query.processDefinition } : {}) }, (item) => {
                 const instance = decodeInstance(item);
                 if (query.key !== undefined && instance.key !== query.key) throw inconsistent();
+                if (query.processDefinition !== undefined && instance.bpmnProcessId !== query.processDefinition) throw inconsistent();
                 return instance;
             });
+        const instances: QueriedProcessInstance[] = [];
+        for (const instance of candidates) {
+            if (query.activity === undefined || await this.hasActiveActivity(http, basePath, token, instance, query.activity)) {
+                instances.push(instance);
+            }
+        }
         if (query.includeVariables) {
             for (const instance of instances) {
                 const variables = await this.search(http, basePath, token, 'search',
@@ -53,6 +61,30 @@ export class AxiosProcessInstanceSearchAdapter implements ProcessInstanceSearchO
             }
         }
         return instances;
+    }
+
+    private async hasActiveActivity(http: AxiosInstance, basePath: string, token: string | undefined,
+        instance: QueriedProcessInstance, activity: string): Promise<boolean> {
+        // Existence only: do not paginate duplicate/multi-instance executions.
+        // Instance ownership also covers legacy nodes without definition metadata.
+        const body = stringify({ filter: { processInstanceKey: new LosslessNumber(instance.key), flowNodeId: activity, state: 'ACTIVE' },
+            size: 1, sort: [{ field: 'key', order: 'ASC' }] })!;
+        const page = record(await this.request(() => dispatchOperateRequest(http, basePath, token, { operationId: 'search_4', body }),
+            'Operate activity query'));
+        if (!Array.isArray(page.items)) throw inconsistent();
+        for (const value of page.items) {
+            const node = record(value);
+            decimalKey(node.key);
+            if (decimalKey(node.processInstanceKey) !== instance.key || node.flowNodeId !== activity || node.state !== 'ACTIVE') throw inconsistent();
+            if (node.processDefinitionKey !== undefined) {
+                const definitionKey = decimalKey(node.processDefinitionKey);
+                if (instance.processDefinitionKey !== undefined && definitionKey !== instance.processDefinitionKey) throw inconsistent();
+            }
+            const nodeTenant = tenant(node).tenantId;
+            if (nodeTenant !== undefined && instance.tenantId !== undefined && nodeTenant !== instance.tenantId) throw inconsistent();
+            if (node.incident !== undefined && typeof node.incident !== 'boolean') throw inconsistent();
+        }
+        return page.items.length > 0;
     }
 
     private async search<T extends { key: string }>(http: AxiosInstance, basePath: string, token: string | undefined,

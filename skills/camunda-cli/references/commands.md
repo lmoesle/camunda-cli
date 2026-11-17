@@ -42,13 +42,29 @@ values containing spaces. Every cluster command requires explicit
 
 ```sh
 camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993"}' --json
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order"}'
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order","activity":"reviewTask"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993","processDefinition":"order","activity":"reviewTask"}' --json
 ```
 
-Omit `--filter` or use `{}` for all ACTIVE instances. Only `process-instance` is
-accepted: a positive decimal signed-int64 string, never a JSON number. The CLI
-trims and normalizes leading zeros before profile lookup or network requests.
-Filtering never includes non-ACTIVE instances; incident-bearing ACTIVE instances
-remain included.
+Omit `--filter` or use `{}` for all ACTIVE instances. All supplied filters combine
+with **AND**; only these keys are accepted:
+
+- `process-instance`: positive decimal signed-int64 string, never a JSON number.
+  The CLI trims it and normalizes leading zeros.
+- `processDefinition`: exact BPMN process ID (`bpmnProcessId`), not a numeric
+  definition key or display name. Matches all visible versions and tenants.
+- `activity`: exact BPMN flow node ID, **requires `processDefinition`**, even with
+  an instance key. Matches currently ACTIVE nodes as indexed, not historical
+  completed/terminated execution.
+
+Definition/activity IDs must be nonblank strings and retain their exact bytes.
+Validation runs before cached profile lookup or network requests, not startup
+profile file loading. Filtering never includes non-ACTIVE instances;
+incident-bearing ACTIVE nodes/instances count. Multiple executions of the same
+activity never duplicate instance rows. Unknown combinations return no matches.
+Activity filtering performs one sequential existence read per candidate
+instance; only selected instances load variables in JSON mode.
 
 Instance searches paginate until empty; JSON additionally paginates every
 instance's variables across all scopes. Keys are exact decimal strings.

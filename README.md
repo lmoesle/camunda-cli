@@ -166,13 +166,20 @@ List all visible **ACTIVE** process instances, including instances with incident
 
 ```sh
 camunda-cli process-instances get --profile local
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order"}'
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order","activity":"reviewTask"}' --json
 camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993","processDefinition":"order","activity":"reviewTask"}' --json
 ```
 
-`--profile` is required. The optional `--filter` accepts only `process-instance`,
-a positive decimal int64 **string**; omitted filters and `{}` select all ACTIVE
-instances. A filtered query still excludes completed and canceled instances.
-Keys remain exact decimal strings in output.
+`--profile` is required. Omitted filters and `{}` select all ACTIVE instances.
+The optional `--filter` combines these selectors with **AND**:
+
+- `process-instance`: positive decimal int64 **string** key.
+- `processDefinition`: exact BPMN process ID (`bpmnProcessId`), not a numeric
+  definition key or display name; matches all visible versions and tenants.
+- `activity`: exact BPMN flow node ID; **requires `processDefinition`**. Matches
+  currently ACTIVE flow nodes as indexed, not completed/terminated history.
 
 ### migration-monitor
 

@@ -62,7 +62,11 @@ const scenarios: {
     expected: object;
     missingPort: string;
 }[] = [
-    ...[{}, { json: true }, { filter: '{}' }, { json: true, filter: '{"process-instance":"1"}' }].map((options) => ({
+    ...[{}, { json: true }, ...[
+        '{}', '{"process-instance":"1"}', '{"processDefinition":"order"}',
+        '{"process-instance":"1","processDefinition":"order"}', '{"processDefinition":"order","activity":"task"}',
+        '{"process-instance":"1","processDefinition":"order","activity":"task"}',
+    ].flatMap((filter) => [{ filter }, { json: true, filter }])].map((options: { json?: boolean; filter?: string }) => ({
         name: `process-instances get ${JSON.stringify(options)}`,
         args: ['process-instances', 'get', '--profile', 'local', ...(options.json ? ['--json'] : []),
             ...(options.filter ? ['--filter', options.filter] : [])],

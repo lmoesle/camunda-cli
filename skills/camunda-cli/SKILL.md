@@ -70,10 +70,17 @@ neither. XML appears as a JSON string, not raw XML.
 
 ```sh
 camunda-cli process-instances get --profile local
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order"}'
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order","activity":"reviewTask"}' --json
 camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993","processDefinition":"order","activity":"reviewTask"}' --json
 ```
 
-The optional key filter remains ACTIVE-only, including instances with incidents.
+All filters combine with AND and remain ACTIVE-only, including incidents.
+`processDefinition` is the exact BPMN process ID, not a definition key/name, across
+all visible versions and tenants. `activity` requires `processDefinition` and
+selects an exact currently ACTIVE flow node ID, not history. Multiple executions
+never duplicate instance rows; unknown combinations return no matches.
 JSON paginates all variables across scopes and preserves raw JSON-encoded value
 strings; it may expose secrets. The table skips variables. See
 [query boundaries](references/commands.md#process-instance-query-boundaries).

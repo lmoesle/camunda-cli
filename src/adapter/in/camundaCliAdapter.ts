@@ -79,7 +79,7 @@ export function createCamundaCli(dependencies: CamundaCliDependencies): Command 
         .command('get')
         .description('List all ACTIVE process instances, including instances with incidents')
         .requiredOption('--profile <name>', 'stored Operate profile name (required)')
-        .option('--filter <json>', 'JSON object with optional "process-instance" positive int64 key string')
+        .option('--filter <json>', 'AND filters: "process-instance" int64 key string, "processDefinition" BPMN process ID, "activity" ACTIVE flow node ID (requires processDefinition)')
         .option('--json', 'print a JSON array including all variables and full JSON-encoded value strings')
         .action(async (options: GetProcessInstancesCommand) => {
             if (!dependencies.getProcessInstancesInPort) throw new Error('The process-instances get command requires a GetProcessInstancesInPort dependency.');
