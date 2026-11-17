@@ -10,6 +10,14 @@ export type { CompleteUserTaskCommand, CompleteUserTaskInPort } from './applicat
 export type { UserTaskOutPort, UserTaskSession } from './application/ports/out/userTaskOutPort';
 export type { UserTaskProfileOutPort } from './application/ports/out/userTaskProfileOutPort';
 export type { ShowUserTasksOutPort } from './application/ports/out/showUserTasksOutPort';
+export { GetProcessInstancesUseCase } from './application/usecases/getProcessInstancesUseCase';
+export { AxiosProcessInstanceSearchAdapter } from './adapter/out/axiosProcessInstanceSearchAdapter';
+export { ConsoleProcessInstancesPresenter } from './adapter/out/consoleProcessInstancesPresenter';
+export { processInstanceFilter, processInstanceQueryFilter } from './domain/processInstanceQuery';
+export type { QueriedProcessInstance, ProcessInstanceVariable, ProcessInstanceQuery, ProcessInstanceQueryFilter } from './domain/processInstanceQuery';
+export type { GetProcessInstancesCommand, GetProcessInstancesInPort } from './application/ports/in/getProcessInstancesInPort';
+export type { ProcessInstanceSearchOutPort } from './application/ports/out/processInstanceSearchOutPort';
+export type { ShowProcessInstancesOutPort } from './application/ports/out/showProcessInstancesOutPort';
 export { AddVariablesUseCase } from './application/usecases/addVariablesUseCase';
 export { AxiosAddVariablesAdapter } from './adapter/out/axiosAddVariablesAdapter';
 export { ConsoleAddVariablesPresenter } from './adapter/out/consoleAddVariablesPresenter';

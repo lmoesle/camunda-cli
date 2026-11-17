@@ -47,7 +47,7 @@ or authentication.
 | `--oauth-url <url>` | Client-credentials OAuth token endpoint. |
 | `--audience <audience>` | Gateway audience and legacy Operate fallback. |
 | `--operate-audience <audience>` | Override the audience for Operate. |
-| `--operate-url <url>` | Operate root for `api`, `incidents`, `migration-monitor`, and `migrate`. |
+| `--operate-url <url>` | Operate root for `api`, `process-instances get`, `incidents`, `migration-monitor`, and `migrate`. |
 | `--zeebe-url <url>` | Stored only; current commands do not use it. |
 | `--no-auth` | Store the JSON boolean `noAuth: true` to disable authentication. |
 
@@ -68,7 +68,7 @@ Completion always retains the original gateway URL and audience.
 
 | Command | Authentication |
 | --- | --- |
-| `api`, `incidents`, `migration-monitor` | Require `--client-id`, `--client-secret`, and `--oauth-url` unless the profile sets `noAuth: true`. No Basic or cookie mode. |
+| `api`, `process-instances get`, `incidents`, `migration-monitor` | Require `--client-id`, `--client-secret`, and `--oauth-url` unless the profile sets `noAuth: true`. No Basic or cookie mode. |
 | `usertasks`, `usertask`, `add-variables`, `create-process-instance`, `deploy`, `incident retry`, `migrate` | Support OAuth; Self-Managed can omit all OAuth fields, including audiences, only when the relevant services intentionally allow unauthenticated access. This is not the default C8Run configuration. |
 | `api ls`, help/version, `create-migration-bundle` | No cluster connection or profile needed. Bundling still writes a local file. |
 

@@ -36,7 +36,7 @@ camunda-cli add profile --name <name> --base-url <url> [options]
 | `--audience <audience>` | Optional gateway OAuth audience; also the legacy Operate fallback. |
 | `--operate-audience <audience>` | Optional Operate OAuth audience override. |
 | `--oauth-url <url>` | Optional OAuth token endpoint for client-credentials authentication. |
-| `--operate-url <url>` | Optional Operate service root; required by api, incidents, migration-monitor, and migrate. |
+| `--operate-url <url>` | Optional Operate service root; required by api, process-instances get, incidents, migration-monitor, and migrate. |
 | `--zeebe-url <url>` | Optional stored Zeebe URL; current commands do not use it. |
 | `--no-auth` | Store `noAuth: true` to disable authentication. |
 
@@ -50,7 +50,7 @@ Cluster commands do not fall back to `--zeebe-url` or environment settings.
 
 - **OAuth:** Supply all three of `--client-id`, `--client-secret`, and `--oauth-url`; partial or blank configuration fails at use. SaaS gateway commands require an audience, normally `zeebe.camunda.io`; SaaS Operate also requires an audience, normally `operate.camunda.io`.
   For a shared SaaS migration profile, set **both** `--audience` and `--operate-audience` and grant access to both APIs. Self-Managed OAuth can omit audiences; incidents and Self-Managed migration use `--audience` when no Operate override is present.
-- **No authentication:** Set the JSON boolean `noAuth: true`, or create a profile with `--no-auth`, for deliberately unauthenticated services. This is **not the default C8Run configuration**. All cluster command families (`usertasks`, `usertask`, `add-variables`, `create-process-instance`, `api`, `incidents`, `migration-monitor`, `deploy`, `incident retry`, `migrate`) skip OAuth requests and send no authentication headers. Literal `true` overrides and ignores any retained OAuth settings, even partial or malformed ones. Required service URL validation still applies. Cookie and Basic authentication are not supported.
+- **No authentication:** Set the JSON boolean `noAuth: true`, or create a profile with `--no-auth`, for deliberately unauthenticated services. This is **not the default C8Run configuration**. All cluster command families (`usertasks`, `usertask`, `add-variables`, `create-process-instance`, `api`, `process-instances get`, `incidents`, `migration-monitor`, `deploy`, `incident retry`, `migrate`) skip OAuth requests and send no authentication headers. Literal `true` overrides and ignores any retained OAuth settings, even partial or malformed ones. Required service URL validation still applies. Cookie and Basic authentication are not supported.
 - **Unchanged defaults:** `noAuth: false` or an omitted `noAuth` preserves existing authentication behavior. Usertasks, usertask completion, add-variables, create-process-instance, deploy, retry, and Self-Managed migrate can still omit all OAuth fields (including audiences) for intentionally unauthenticated services; Operate-only commands otherwise require OAuth.
 
 For deliberately unauthenticated local services, create and select a profile:
@@ -190,6 +190,27 @@ Directory scans skip symlinks; explicitly supplied symlinks are rejected.
 **Each file uses a separate deployment request and transaction**, so cross-file same-deployment bindings are unsupported.
 Deployment stops on the first failure; earlier successes remain committed. Check cluster state before rerunning if the failed request's outcome is uncertain.
 
+### process-instances get
+
+List all visible **ACTIVE** process instances, including instances with incidents:
+
+```sh
+camunda-cli process-instances get --profile local
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order"}'
+camunda-cli process-instances get --profile local --filter '{"processDefinition":"order","activity":"reviewTask"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993"}' --json
+camunda-cli process-instances get --profile local --filter '{"process-instance":"9007199254740993","processDefinition":"order","activity":"reviewTask"}' --json
+```
+
+`--profile` is required. Omitted filters and `{}` select all ACTIVE instances.
+The optional `--filter` combines these selectors with **AND**:
+
+- `process-instance`: positive decimal int64 **string** key.
+- `processDefinition`: exact BPMN process ID (`bpmnProcessId`), not a numeric
+  definition key or display name; matches all visible versions and tenants.
+- `activity`: exact BPMN flow node ID; **requires `processDefinition`**. Matches
+  currently ACTIVE flow nodes as indexed, not completed/terminated history.
+
 ### migration-monitor
 
 ```sh
@@ -324,8 +345,9 @@ Show command help or the installed CLI version.
 ```sh
 camunda-cli --help
 camunda-cli help deploy
+camunda-cli process-instances get --help
 camunda-cli --version
 ```
 
-`help [command]` covers direct children of the current command; use nested help as shown for subcommands. `add`, and `incident` are command groups, not standalone actions.
+`help [command]` covers direct children of the current command; use nested help as shown for subcommands. `add`, `incident`, and `process-instances` are command groups, not standalone actions.
 Use `-h, --help` on any command and root `-V, --version`; there is no `version` subcommand or lowercase `-v` alias.
